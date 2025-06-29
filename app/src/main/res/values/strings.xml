@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Screen Mirror</string>
+    <string name="start_mirroring">Start Screen Mirroring</string>
+    <string name="stop_mirroring">Stop Screen Mirroring</string>
+    <string name="accessibility_settings">Accessibility Settings</string>
+    <string name="status_running">Screen mirroring is active</string>
+    <string name="status_stopped">Screen mirroring is stopped</string>
+    <string name="permission_required">Permissions Required</string>
+    <string name="accessibility_service_description">Allows Screen Mirror to simulate touch events on your device when controlled from iPad</string>
+</resources>
