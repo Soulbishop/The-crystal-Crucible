@@ -86,7 +86,7 @@ public class ScreenCaptureService extends Service {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "Screen Capture Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT // MODIFIED: Changed from IMPORTANCE_LOW
             );
             channel.setDescription("Screen mirroring service notification");
 
@@ -99,7 +99,7 @@ public class ScreenCaptureService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Screen Mirroring Active")
             .setContentText("Your screen is being mirrored to iPad")
-            .setSmallIcon(R.mipmap.ic_launcher) // <--- THIS IS THE CRUCIAL CHANGE
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .build();
     }
