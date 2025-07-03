@@ -20,6 +20,8 @@ import android.view.WindowManager;
 import androidx.core.app.NotificationCompat;
 import java.nio.ByteBuffer;
 
+import com.screenmirror.samsung.R; // THIS IMPORT IS CRUCIAL FOR R.mipmap.ic_launcher
+
 public class ScreenCaptureService extends Service {
 
     private static final String TAG = "ScreenCaptureService";
@@ -52,19 +54,16 @@ public class ScreenCaptureService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // --- MODIFIED SECTION START ---
-        int resultCode = intent.getIntExtra("resultCode", 0); // Get the result code
-        Intent data = intent.getParcelableExtra("data");     // Get the data intent
+        int resultCode = intent.getIntExtra("resultCode", 0);
+        Intent data = intent.getParcelableExtra("data");
 
-        if (resultCode != 0 && data != null) { // Check if data is properly received
+        if (resultCode != 0 && data != null) {
             startForeground(NOTIFICATION_ID, createNotification());
-            // Pass resultCode and data directly to startScreenCapture
             startScreenCapture(resultCode, data);
         } else {
             Log.e(TAG, "No MediaProjection resultCode or data provided. Stopping service.");
             stopSelf();
         }
-        // --- MODIFIED SECTION END ---
 
         return START_STICKY;
     }
@@ -79,7 +78,7 @@ public class ScreenCaptureService extends Service {
         super.onDestroy();
         stopScreenCapture();
         instance = null;
-        Log.d(TAG, "ScreenCaptureService destroyed"); // Added log for clarity
+        Log.d(TAG, "ScreenCaptureService destroyed");
     }
 
     private void createNotificationChannel() {
@@ -100,7 +99,7 @@ public class ScreenCaptureService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Screen Mirroring Active")
             .setContentText("Your screen is being mirrored to iPad")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Make sure this icon exists or provide your own
+            .setSmallIcon(R.mipmap.ic_launcher) // <--- THIS IS THE CRUCIAL CHANGE
             .setOngoing(true)
             .build();
     }
@@ -109,11 +108,10 @@ public class ScreenCaptureService extends Service {
         WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         DisplayMetrics displayMetrics = new DisplayMetrics();
 
-        // Using modern getRealMetrics for API 30+ but keeping older path for safety, though only one is strictly needed for API 33
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // API 30+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             windowManager.getDefaultDisplay().getRealMetrics(displayMetrics);
-        } else { // Older APIs
-            windowManager.getDefaultDisplay().getRealMetrics(displayMetrics); // getRealMetrics is available before R too
+        } else {
+            windowManager.getDefaultDisplay().getRealMetrics(displayMetrics);
         }
 
         screenWidth = displayMetrics.widthPixels;
@@ -123,32 +121,30 @@ public class ScreenCaptureService extends Service {
         Log.d(TAG, "Screen metrics: " + screenWidth + "x" + screenHeight + ", density: " + screenDensity);
     }
 
-    // --- MODIFIED METHOD SIGNATURE ---
     private void startScreenCapture(int resultCode, Intent data) {
         MediaProjectionManager mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         mediaProjection = mediaProjectionManager.getMediaProjection(
-            resultCode, // Use the resultCode from MainActivity
-            data        // Use the data Intent from MainActivity
+            resultCode,
+            data
         );
 
         if (mediaProjection == null) {
             Log.e(TAG, "Failed to get MediaProjection object after receiving data.");
-            stopSelf(); // Stop if MediaProjection cannot be obtained
+            stopSelf();
             return;
         }
 
-        // Create ImageReader for capturing frames
         imageReader = ImageReader.newInstance(
             screenWidth,
             screenHeight,
-            PixelFormat.RGBA_8888, // RGBA_8888 is a good format for most uses
-            2 // Max images
+            PixelFormat.RGBA_8888,
+            2
         );
 
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
-                android.media.Image image = null; // Declare image outside try-finally
+                android.media.Image image = null;
                 try {
                     image = reader.acquireLatestImage();
                     if (image != null) {
@@ -156,15 +152,10 @@ public class ScreenCaptureService extends Service {
                         ByteBuffer buffer = planes[0].getBuffer();
                         int pixelStride = planes[0].getPixelStride();
                         int rowStride = planes[0].getRowStride();
-                        // int rowPadding = rowStride - pixelStride * screenWidth; // Not directly used in byte[] creation
 
-                        // Create bitmap data - Note: This simple buffer.get() only gets the raw bytes.
-                        // If you need a proper bitmap for streaming, more complex processing is needed
-                        // to handle rowStride and pixelStride for different image formats.
                         byte[] bitmapData = new byte[buffer.remaining()];
                         buffer.get(bitmapData);
 
-                        // Notify streaming service of new frame
                         if (frameCallback != null) {
                             frameCallback.onFrameAvailable(bitmapData);
                         }
@@ -179,13 +170,12 @@ public class ScreenCaptureService extends Service {
             }
         }, null);
 
-        // Create virtual display
         virtualDisplay = mediaProjection.createVirtualDisplay(
             "ScreenMirror",
             screenWidth,
             screenHeight,
             screenDensity,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, // AUTO_MIRROR for mirroring
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader.getSurface(),
             null,
             null
@@ -210,8 +200,7 @@ public class ScreenCaptureService extends Service {
             mediaProjection = null;
         }
 
-        // Ensure notification is removed when service stops
-        stopForeground(true); // Call this to remove the persistent notification
+        stopForeground(true);
         Log.d(TAG, "Screen capture stopped");
     }
 
