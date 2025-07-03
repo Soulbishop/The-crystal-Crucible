@@ -1,5 +1,7 @@
 package com.screenmirror.samsung;
 
+import android.os.Parcelable; // ADD THIS LINE
+import android.media.projection.MediaProjection; // Ensure this is also present if not already
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -202,7 +204,7 @@ public class MainActivity extends Activity {
     private void startServices() {
         // Start screen capture service
         Intent captureIntent = new Intent(this, ScreenCaptureService.class);
-        captureIntent.putExtra("mediaProjection", mediaProjection);
+        captureIntent.putExtra("mediaProjection", (Parcelable) mediaProjection);
         startForegroundService(captureIntent);
         
         // Start streaming service
