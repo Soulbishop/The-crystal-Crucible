@@ -7,7 +7,7 @@ import android.util.Log;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream; // ADDED THIS IMPORT for clientSocket.getOutputStream()
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -53,7 +53,7 @@ public class StreamingService extends Service {
         super.onDestroy();
         cleanup();
         instance = null;
-        Log.d(TAG, "StreamingService destroyed"); // Added log for clarity
+        Log.d(TAG, "StreamingService destroyed");
     }
 
     private void startSignalingServer() {
@@ -73,12 +73,12 @@ public class StreamingService extends Service {
                             if (!Thread.currentThread().isInterrupted()) {
                                 Log.e(TAG, "Error accepting client connection", e);
                             }
-                            break; // Exit loop on expected socket close during cleanup
+                            break;
                         }
                     }
                 } catch (IOException e) {
                     Log.e(TAG, "Error starting signaling server", e);
-                } finally { // Added finally block for clean shutdown
+                } finally {
                     if (signalingServer != null && !signalingServer.isClosed()) {
                         try {
                             signalingServer.close();
@@ -94,7 +94,6 @@ public class StreamingService extends Service {
     private void handleClientConnection() {
         setupScreenCapture();
 
-        // Handle signaling messages from iPad
         executor.execute(new Runnable() {
             @Override
             public void run() {
@@ -109,8 +108,8 @@ public class StreamingService extends Service {
                         handleSignalingMessage(message);
                     }
                 } catch (IOException e) {
-                    Log.e(TAG, "Error reading signaling message: " + e.getMessage(), e); // More detailed log
-                } finally { // Ensure client socket is closed
+                    Log.e(TAG, "Error reading signaling message: " + e.getMessage(), e);
+                } finally {
                     try {
                         if (clientSocket != null && !clientSocket.isClosed()) {
                             clientSocket.close();
@@ -125,7 +124,6 @@ public class StreamingService extends Service {
     }
 
     private void setupScreenCapture() {
-        // Get screen capture frames from ScreenCaptureService
         if (ScreenCaptureService.instance != null) {
             ScreenCaptureService.instance.setFrameCallback(new ScreenCaptureService.FrameCallback() {
                 @Override
@@ -137,34 +135,22 @@ public class StreamingService extends Service {
     }
 
     private void sendVideoFrame(byte[] frameData) {
-        // In a real implementation, you would:
-        // 1. Convert the raw frame data to a video format
-        // 2. Send it via WebSocket or WebRTC to the iPad
-        // 3. Handle video encoding and streaming
-
-        // For now, this is a placeholder for the video streaming logic
         Log.d(TAG, "Sending video frame: " + frameData.length + " bytes");
 
-        // Simple HTTP streaming approach (basic implementation)
         if (clientSocket != null && !clientSocket.isClosed()) {
             try {
-                // Ensure output stream is properly handled (using try-with-resources if possible, or careful flush/close)
-                // Note: Repeatedly sending HTTP headers for each frame is inefficient for video streaming.
-                // A proper video stream would use a continuous protocol (e.g., MJPEG over HTTP multipart, WebSocket, WebRTC).
-                // This current implementation sends separate HTTP responses for each frame.
                 String httpResponse = "HTTP/1.1 200 OK\r\n" +
-                    "Content-Type: image/jpeg\r\n" + // Assuming frames are converted to JPEG
-                    "Content-Length: " + frameData.length() + "\r\n" +
-                    "Connection: keep-alive\r\n\r\n"; // Keep-alive is optimistic with this simple approach
+                    "Content-Type: image/jpeg\r\n" +
+                    "Content-Length: " + frameData.length + "\r\n" + // <--- FIXED THIS LINE
+                    "Connection: keep-alive\r\n\r\n";
 
-                OutputStream os = clientSocket.getOutputStream(); // Get stream once
+                OutputStream os = clientSocket.getOutputStream();
                 os.write(httpResponse.getBytes("UTF-8"));
                 os.write(frameData);
                 os.flush();
 
             } catch (IOException e) {
                 Log.e(TAG, "Error sending video frame: " + e.getMessage(), e);
-                // Consider closing clientSocket here if error is persistent, as connection might be broken
                 try {
                     clientSocket.close();
                 } catch (IOException ex) { /* ignore */ }
@@ -176,7 +162,6 @@ public class StreamingService extends Service {
         try {
             Log.d(TAG, "Received message: " + message);
 
-            // Simple message parsing for touch coordinates
             if (message.startsWith("TOUCH:")) {
                 String[] parts = message.substring(6).split(",");
                 if (parts.length == 2) {
@@ -187,7 +172,7 @@ public class StreamingService extends Service {
             }
 
         } catch (Exception e) {
-            Log.e(TAG, "Error handling signaling message: " + e.getMessage(), e); // More detailed log
+            Log.e(TAG, "Error handling signaling message: " + e.getMessage(), e);
         }
     }
 
@@ -204,7 +189,7 @@ public class StreamingService extends Service {
             public void run() {
                 try {
                     if (clientSocket != null && !clientSocket.isClosed()) {
-                        clientSocket.getOutputStream().write((message + "\n").getBytes("UTF-8")); // Specify encoding
+                        clientSocket.getOutputStream().write((message + "\n").getBytes("UTF-8"));
                         clientSocket.getOutputStream().flush();
                     }
                 } catch (IOException e) {
@@ -227,7 +212,7 @@ public class StreamingService extends Service {
         }
 
         if (executor != null) {
-            executor.shutdownNow(); // Use shutdownNow for immediate stop of tasks
+            executor.shutdownNow();
         }
     }
 
@@ -235,9 +220,6 @@ public class StreamingService extends Service {
         this.touchCallback = callback;
     }
 
-    // This method is called by DiscoveryService.
-    // It attempts to send device info to the *connected streaming client*.
-    // It does NOT broadcast for discovery itself.
     public void broadcastDeviceInfo() {
         if (ScreenCaptureService.instance != null) {
             int[] dimensions = ScreenCaptureService.instance.getScreenDimensions();
