@@ -1,13 +1,13 @@
 package com.screenmirror.samsung;
 
-import android.os.Parcelable; // ADD THIS LINE
-import android.media.projection.MediaProjection; // Ensure this is also present if not already
+import android.os.Parcelable; // This import is correct and needed
+import android.media.projection.MediaProjection; // This import is correct and needed
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.projection.MediaProjection;
+// REMOVED duplicate MediaProjection import (Line 7) - it's already on Line 2
 import android.media.projection.MediaProjectionManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -27,38 +27,38 @@ import com.screenmirror.samsung.service.TouchInputService;
 import com.screenmirror.samsung.service.DiscoveryService;
 
 public class MainActivity extends Activity {
-    
+
     private static final int REQUEST_MEDIA_PROJECTION = 1000;
     private static final int REQUEST_ACCESSIBILITY = 1001;
     private static final int REQUEST_OVERLAY = 1002;
     private static final int REQUEST_PERMISSIONS = 1003;
-    
+
     private MediaProjectionManager mediaProjectionManager;
     private MediaProjection mediaProjection;
-    
+
     private Button startButton;
     private Button stopButton;
     private Button settingsButton;
     private TextView statusText;
     private TextView ipAddressText;
-    
+
     private boolean isRunning = false;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        
+
         initializeViews();
         setupClickListeners();
         checkPermissions();
-        
+
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        
+
         updateUI();
         displayIPAddress();
     }
-    
+
     private void initializeViews() {
         startButton = findViewById(R.id.startButton);
         stopButton = findViewById(R.id.stopButton);
@@ -66,13 +66,13 @@ public class MainActivity extends Activity {
         statusText = findViewById(R.id.statusText);
         ipAddressText = findViewById(R.id.ipAddressText);
     }
-    
+
     private void setupClickListeners() {
         startButton.setOnClickListener(v -> startScreenMirroring());
         stopButton.setOnClickListener(v -> stopScreenMirroring());
         settingsButton.setOnClickListener(v -> openSettings());
     }
-    
+
     private void checkPermissions() {
         String[] permissions = {
             Manifest.permission.INTERNET,
@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
             Manifest.permission.FOREGROUND_SERVICE,
             Manifest.permission.SYSTEM_ALERT_WINDOW
         };
-        
+
         boolean allGranted = true;
         for (String permission : permissions) {
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
@@ -89,61 +89,61 @@ public class MainActivity extends Activity {
                 break;
             }
         }
-        
+
         if (!allGranted) {
             ActivityCompat.requestPermissions(this, permissions, REQUEST_PERMISSIONS);
         }
-        
+
         // Check overlay permission
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
             startActivityForResult(intent, REQUEST_OVERLAY);
         }
-        
+
         // Check accessibility permission
-        if (!TouchInputService.isAccessibilityServiceEnabled(this)) {
+        if (!TouchInputService.isAccessibilityServiceEnabled(this)) { // This call is now correct as per previous fix
             showAccessibilityDialog();
         }
     }
-    
+
     private void startScreenMirroring() {
         if (isRunning) {
             Toast.makeText(this, "Screen mirroring is already running", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         // Request media projection permission
         Intent intent = mediaProjectionManager.createScreenCaptureIntent();
         startActivityForResult(intent, REQUEST_MEDIA_PROJECTION);
     }
-    
+
     private void stopScreenMirroring() {
         if (!isRunning) {
             Toast.makeText(this, "Screen mirroring is not running", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         // Stop all services
         stopService(new Intent(this, ScreenCaptureService.class));
         stopService(new Intent(this, StreamingService.class));
         stopService(new Intent(this, DiscoveryService.class));
-        
+
         if (mediaProjection != null) {
             mediaProjection.stop();
             mediaProjection = null;
         }
-        
+
         isRunning = false;
         updateUI();
-        
+
         Toast.makeText(this, "Screen mirroring stopped", Toast.LENGTH_SHORT).show();
     }
-    
+
     private void openSettings() {
         Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
         startActivity(intent);
     }
-    
+
     private void showAccessibilityDialog() {
         new android.app.AlertDialog.Builder(this)
             .setTitle("Accessibility Service Required")
@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
             .setNegativeButton("Cancel", null)
             .show();
     }
-    
+
     private void displayIPAddress() {
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (wifiManager != null) {
@@ -164,7 +164,7 @@ public class MainActivity extends Activity {
             ipAddressText.setText("Device IP: " + ip + ":8080");
         }
     }
-    
+
     private void updateUI() {
         if (isRunning) {
             startButton.setVisibility(View.GONE);
@@ -178,15 +178,15 @@ public class MainActivity extends Activity {
             statusText.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
         }
     }
-    
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
+
         if (requestCode == REQUEST_MEDIA_PROJECTION) {
             if (resultCode == RESULT_OK) {
                 mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
-                startServices();
+                startServices(resultCode, data); // MODIFIED: Pass resultCode and data
             } else {
                 Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
             }
@@ -200,31 +200,35 @@ public class MainActivity extends Activity {
             }
         }
     }
-    
-    private void startServices() {
+
+    // MODIFIED: startServices now accepts resultCode and data
+    private void startServices(int resultCode, Intent data) {
         // Start screen capture service
         Intent captureIntent = new Intent(this, ScreenCaptureService.class);
-        captureIntent.putExtra("mediaProjection", (Parcelable) mediaProjection);
+        // MODIFIED: Pass result code and data to the service directly,
+        // so the service can get its own MediaProjection
+        captureIntent.putExtra("resultCode", resultCode);
+        captureIntent.putExtra("data", data);
         startForegroundService(captureIntent);
-        
+
         // Start streaming service
         Intent streamingIntent = new Intent(this, StreamingService.class);
         startService(streamingIntent);
-        
+
         // Start discovery service
         Intent discoveryIntent = new Intent(this, DiscoveryService.class);
         startService(discoveryIntent);
-        
+
         isRunning = true;
         updateUI();
-        
+
         Toast.makeText(this, "Screen mirroring started", Toast.LENGTH_SHORT).show();
     }
-    
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        
+
         if (requestCode == REQUEST_PERMISSIONS) {
             boolean allGranted = true;
             for (int result : grantResults) {
@@ -233,7 +237,7 @@ public class MainActivity extends Activity {
                     break;
                 }
             }
-            
+
             if (allGranted) {
                 Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show();
             } else {
@@ -241,7 +245,7 @@ public class MainActivity extends Activity {
             }
         }
     }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -250,4 +254,3 @@ public class MainActivity extends Activity {
         }
     }
 }
-
