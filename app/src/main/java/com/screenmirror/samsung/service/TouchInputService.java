@@ -7,7 +7,7 @@ import android.graphics.Path;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
-import android.content.ComponentName; // ADD THIS IMPORT
+import android.content.ComponentName; // ADDED THIS IMPORT
 
 public class TouchInputService extends AccessibilityService {
 
