@@ -1,13 +1,12 @@
 package com.screenmirror.samsung;
 
-import android.os.Parcelable; // This import is correct and needed
-import android.media.projection.MediaProjection; // This import is correct and needed
+import android.os.Parcelable;
+import android.media.projection.MediaProjection;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-// REMOVED duplicate MediaProjection import (Line 7) - it's already on Line 2
 import android.media.projection.MediaProjectionManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -51,7 +50,7 @@ public class MainActivity extends Activity {
 
         initializeViews();
         setupClickListeners();
-        checkPermissions();
+        checkPermissions(); // This method will be fixed below
 
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -74,34 +73,36 @@ public class MainActivity extends Activity {
     }
 
     private void checkPermissions() {
+        // REMOVED Manifest.permission.SYSTEM_ALERT_WINDOW from this array
         String[] permissions = {
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_NETWORK_STATE,
             Manifest.permission.ACCESS_WIFI_STATE,
-            Manifest.permission.FOREGROUND_SERVICE,
-            Manifest.permission.SYSTEM_ALERT_WINDOW
+            Manifest.permission.FOREGROUND_SERVICE
+            // SYSTEM_ALERT_WINDOW is handled separately below, no longer in this array
         };
 
-        boolean allGranted = true;
+        boolean allRuntimePermissionsGranted = true;
         for (String permission : permissions) {
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
+                allRuntimePermissionsGranted = false;
                 break;
             }
         }
 
-        if (!allGranted) {
+        // Only request permissions if any of the *runtime* ones are not granted
+        if (!allRuntimePermissionsGranted) {
             ActivityCompat.requestPermissions(this, permissions, REQUEST_PERMISSIONS);
         }
 
-        // Check overlay permission
+        // Check overlay permission (SYSTEM_ALERT_WINDOW) - handled correctly here
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
             startActivityForResult(intent, REQUEST_OVERLAY);
         }
 
-        // Check accessibility permission
-        if (!TouchInputService.isAccessibilityServiceEnabled(this)) { // This call is now correct as per previous fix
+        // Check accessibility permission (BIND_ACCESSIBILITY_SERVICE) - handled correctly here
+        if (!TouchInputService.isAccessibilityServiceEnabled(this)) {
             showAccessibilityDialog();
         }
     }
@@ -161,7 +162,7 @@ public class MainActivity extends Activity {
         if (wifiManager != null) {
             int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
             String ip = Formatter.formatIpAddress(ipAddress);
-            ipAddressText.setText("Device IP: " + ip + ":8080");
+            ipAddressText.setText("Device IP: " + ip + ":" + 8080); // Using 8080 as streaming port
         }
     }
 
@@ -186,7 +187,7 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_MEDIA_PROJECTION) {
             if (resultCode == RESULT_OK) {
                 mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
-                startServices(resultCode, data); // MODIFIED: Pass resultCode and data
+                startServices(resultCode, data);
             } else {
                 Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
             }
@@ -201,12 +202,9 @@ public class MainActivity extends Activity {
         }
     }
 
-    // MODIFIED: startServices now accepts resultCode and data
     private void startServices(int resultCode, Intent data) {
         // Start screen capture service
         Intent captureIntent = new Intent(this, ScreenCaptureService.class);
-        // MODIFIED: Pass result code and data to the service directly,
-        // so the service can get its own MediaProjection
         captureIntent.putExtra("resultCode", resultCode);
         captureIntent.putExtra("data", data);
         startForegroundService(captureIntent);
@@ -239,9 +237,9 @@ public class MainActivity extends Activity {
             }
 
             if (allGranted) {
-                Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "All required permissions granted", Toast.LENGTH_SHORT).show(); // Changed message slightly
             } else {
-                Toast.makeText(this, "Some permissions were denied", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Some essential permissions were denied, app may not function fully.", Toast.LENGTH_LONG).show(); // Changed message slightly
             }
         }
     }
