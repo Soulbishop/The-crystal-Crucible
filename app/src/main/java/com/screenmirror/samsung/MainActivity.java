@@ -115,7 +115,7 @@ public class MainActivity extends Activity {
     }
     
     private void startScreenMirroring() {
-        if (!TouchInputService.isEnabled(this)) {
+        if (!TouchInputService.isAccessibilityServiceEnabled(this)) {
             Toast.makeText(this, "Please enable Accessibility Service first", Toast.LENGTH_LONG).show();
             openAccessibilitySettings();
             return;
@@ -224,7 +224,7 @@ public class MainActivity extends Activity {
         super.onResume();
         displayIPAddress();
         
-        if (TouchInputService.isEnabled(this)) {
+        if (TouchInputService.isAccessibilityServiceEnabled(this)) {
             Toast.makeText(this, "Accessibility service is enabled", Toast.LENGTH_SHORT).show();
         }
     }
