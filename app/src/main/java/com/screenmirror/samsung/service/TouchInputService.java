@@ -1,60 +1,77 @@
 package com.screenmirror.samsung.service;
 
 import android.accessibilityservice.AccessibilityService;
-import android.accessibilityservice.GestureDescription;
-import android.content.Context;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.Intent;
 import android.graphics.Path;
-import android.provider.Settings;
+import android.graphics.PixelFormat;
+import android.graphics.Region;
+import android.os.Build;
 import android.util.Log;
+import android.view.Display;
+import android.view.GestureDescription;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
-import android.content.ComponentName; // ADDED THIS IMPORT
+import android.widget.Toast;
 
-public class TouchInputService extends AccessibilityService {
+public class TouchInputService extends AccessibilityService implements StreamingService.TouchCallback {
 
     private static final String TAG = "TouchInputService";
+    private WindowManager windowManager;
+    private View overlayView; // For visual feedback if needed
+    private int screenWidth;
+    private int screenHeight;
 
-    public static TouchInputService instance;
+    // Scaling factors
+    private float scaleX = 1.0f;
+    private float scaleY = 1.0f;
 
-    // RENAMED METHOD: isEnabled -> isAccessibilityServiceEnabled
-    public static boolean isAccessibilityServiceEnabled(Context context) {
-        // This part of the code is also slightly improved for robustness
-        // It uses ComponentName which is generally safer for checking accessibility service status
-        ComponentName cn = new ComponentName(context, TouchInputService.class);
-        String flat = Settings.Secure.getString(context.getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (flat == null || flat.isEmpty()) { // Check for null or empty string
-            return false;
-        }
-        return flat.contains(cn.flattenToString());
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Log.d(TAG, "TouchInputService onCreate");
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        // Initialize screen dimensions (will be updated when service connects to StreamingService)
+        Display display = windowManager.getDefaultDisplay();
+        screenWidth = display.getWidth();
+        screenHeight = display.getHeight();
     }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        instance = this;
         Log.d(TAG, "TouchInputService connected");
 
-        // Set up touch coordinate handling from streaming service
+        // Configure AccessibilityServiceInfo for dispatchGesture
+        AccessibilityServiceInfo info = getServiceInfo();
+        info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS; // For key events if needed
+        info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE; // For touch events
+        setServiceInfo(info);
+
+        // Register this service as a TouchCallback with StreamingService
         if (StreamingService.instance != null) {
-            StreamingService.instance.setTouchCallback(new StreamingService.TouchCallback() {
-                @Override
-                public void onTouchReceived(float x, float y) {
-                    simulateTouch(x, y);
-                }
-            });
+            StreamingService.instance.setTouchCallback(this);
+            Log.d(TAG, "TouchInputService registered with StreamingService.");
+        } else {
+            Log.e(TAG, "StreamingService.instance is null, cannot register TouchCallback.");
+            Toast.makeText(this, "Touch Service: StreamingService not ready.", Toast.LENGTH_LONG).show();
         }
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        instance = null;
-        Log.d(TAG, "TouchInputService destroyed");
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        // This method is called when an accessibility event occurs.
+        // We generally don't process these for screen mirroring, but it's required.
+        // Log.d(TAG, "Accessibility Event: " + event.getEventType());
     }
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
-        // We don't need to handle accessibility events for this use case
+    public boolean onKeyEvent(KeyEvent event) {
+        // This method can be used to intercept key events if needed for control.
+        return super.onKeyEvent(event);
     }
 
     @Override
@@ -62,166 +79,97 @@ public class TouchInputService extends AccessibilityService {
         Log.d(TAG, "TouchInputService interrupted");
     }
 
-    public void simulateTouch(float iPadX, float iPadY) {
-        // Get screen dimensions from ScreenCaptureService
-        if (ScreenCaptureService.instance == null) {
-            Log.e(TAG, "ScreenCaptureService not available");
-            return;
-        }
-
-        int[] screenDimensions = ScreenCaptureService.instance.getScreenDimensions();
-        if (screenDimensions == null || screenDimensions.length < 2) {
-            Log.e(TAG, "Cannot get screen dimensions");
-            return;
-        }
-
-        int screenWidth = screenDimensions[0];
-        int screenHeight = screenDimensions[1];
-
-        // iPad Air 2 dimensions: 2048 x 1536
-        float iPadWidth = 2048f;
-        float iPadHeight = 1536f;
-
-        // Map iPad coordinates to Android screen coordinates
-        float androidX = (iPadX / iPadWidth) * screenWidth;
-        float androidY = (iPadY / iPadHeight) * screenHeight;
-
-        // Ensure coordinates are within screen bounds
-        float clampedX = Math.max(0f, Math.min(androidX, screenWidth));
-        float clampedY = Math.max(0f, Math.min(androidY, screenHeight));
-
-        Log.d(TAG, "Touch mapping: iPad(" + iPadX + ", " + iPadY + ") -> Android(" + clampedX + ", " + clampedY + ")");
-
-        // Create gesture description for touch
-        Path path = new Path();
-        path.moveTo(clampedX, clampedY);
-
-        GestureDescription.Builder gestureBuilder = new GestureDescription.Builder();
-        GestureDescription.StrokeDescription strokeDescription =
-            new GestureDescription.StrokeDescription(path, 0, 100);
-        gestureBuilder.addStroke(strokeDescription);
-
-        GestureDescription gesture = gestureBuilder.build();
-
-        // Dispatch the gesture
-        boolean result = dispatchGesture(gesture, new GestureResultCallback() {
-            @Override
-            public void onCompleted(GestureDescription gestureDescription) {
-                Log.d(TAG, "Touch gesture completed at (" + clampedX + ", " + clampedY + ")");
-            }
-
-            @Override
-            public void onCancelled(GestureDescription gestureDescription) {
-                Log.w(TAG, "Touch gesture cancelled");
-            }
-        }, null);
-
-        if (!result) {
-            Log.e(TAG, "Failed to dispatch touch gesture");
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "TouchInputService onDestroy");
+        if (StreamingService.instance != null) {
+            StreamingService.instance.setTouchCallback(null); // Unregister
         }
     }
 
-    public void simulateLongPress(float iPadX, float iPadY) {
-        if (ScreenCaptureService.instance == null) {
-            Log.e(TAG, "ScreenCaptureService not available");
-            return;
-        }
+    // --- Implementation of StreamingService.TouchCallback ---
 
-        int[] screenDimensions = ScreenCaptureService.instance.getScreenDimensions();
-        if (screenDimensions == null || screenDimensions.length < 2) {
-            Log.e(TAG, "Cannot get screen dimensions");
-            return;
-        }
-
-        int screenWidth = screenDimensions[0];
-        int screenHeight = screenDimensions[1];
-        float iPadWidth = 2048f;
-        float iPadHeight = 1536f;
-
-        // Map coordinates
-        float androidX = (iPadX / iPadWidth) * screenWidth;
-        float androidY = (iPadY / iPadHeight) * screenHeight;
-
-        // Clamp coordinates
-        float clampedX = Math.max(0f, Math.min(androidX, screenWidth));
-        float clampedY = Math.max(0f, Math.min(androidY, screenHeight));
-
-        // Create long press gesture (longer duration)
-        Path path = new Path();
-        path.moveTo(clampedX, clampedY);
-
-        GestureDescription.Builder gestureBuilder = new GestureDescription.Builder();
-        GestureDescription.StrokeDescription strokeDescription =
-            new GestureDescription.StrokeDescription(path, 0, 1000); // 1 second
-        gestureBuilder.addStroke(strokeDescription);
-
-        GestureDescription gesture = gestureBuilder.build();
-
-        dispatchGesture(gesture, new GestureResultCallback() {
-            @Override
-            public void onCompleted(GestureDescription gestureDescription) {
-                Log.d(TAG, "Long press gesture completed at (" + clampedX + ", " + clampedY + ")");
-            }
-
-            @Override
-            public void onCancelled(GestureDescription gestureDescription) {
-                Log.w(TAG, "Long press gesture cancelled");
-            }
-        }, null);
+    @Override
+    public void onTouchReceived(float x, float y) {
+        Log.d(TAG, "onTouchReceived: x=" + x + ", y=" + y);
+        // Simulate a tap at the received coordinates
+        dispatchGesture(x, y, x, y, 1, 1); // Simple tap (down and up immediately)
     }
 
-    public void simulateSwipe(float startX, float startY, float endX, float endY) {
-        if (ScreenCaptureService.instance == null) {
-            Log.e(TAG, "ScreenCaptureService not available");
-            return;
-        }
+    @Override
+    public void onLongPressReceived(float x, float y) {
+        Log.d(TAG, "onLongPressReceived: x=" + x + ", y=" + y);
+        dispatchGesture(x, y, x, y, 0, 500); // Long press (hold for 500ms)
+    }
 
-        int[] screenDimensions = ScreenCaptureService.instance.getScreenDimensions();
-        if (screenDimensions == null || screenDimensions.length < 2) {
-            Log.e(TAG, "Cannot get screen dimensions");
-            return;
-        }
+    @Override
+    public void onSwipeReceived(float startX, float startY, float endX, float endY) {
+        Log.d(TAG, "onSwipeReceived: startX=" + startX + ", startY=" + startY + ", endX=" + endX + ", endY=" + endY);
+        dispatchGesture(startX, startY, endX, endY, 0, 200); // Swipe (duration 200ms)
+    }
 
-        int screenWidth = screenDimensions[0];
-        int screenHeight = screenDimensions[1];
-        float iPadWidth = 2048f;
-        float iPadHeight = 1536f;
+    @Override
+    public void onPinchReceived(float scale) {
+        // Pinch gesture - for simplicity, we'll map this to a zoom in/out action
+        // This is a complex gesture for AccessibilityService to simulate accurately,
+        // but we can try a simple two-finger touch/move
+        Log.d(TAG, "onPinchReceived: scale=" + scale);
 
-        // Map coordinates
-        float androidStartX = (startX / iPadWidth) * screenWidth;
-        float androidStartY = (startY / iPadHeight) * screenHeight;
-        float androidEndX = (endX / iPadWidth) * screenWidth;
-        float androidEndY = (endY / iPadHeight) * screenHeight;
+        // For simplicity, we'll just log this for now.
+        // A true pinch gesture simulation requires complex multi-pointer GestureDescription.
+        // If zoom is needed, we might consider sending specific key events (e.g. for browser zoom)
+        // or a simpler single-touch gesture that implies zoom for some apps.
+        // For now, focusing on basic touch.
+    }
 
-        // Clamp coordinates
-        float clampedStartX = Math.max(0f, Math.min(androidStartX, screenWidth));
-        float clampedStartY = Math.max(0f, Math.min(androidStartY, screenHeight));
-        float clampedEndX = Math.max(0f, Math.min(androidEndX, screenWidth));
-        float clampedEndY = Math.max(0f, Math.min(androidEndY, screenHeight));
+    // Helper method to dispatch gestures
+    private void dispatchGesture(float startX, float startY, float endX, float endY, long downTime, long duration) {
+        // Scale coordinates to device screen dimensions if necessary
+        // Assuming incoming coordinates are normalized (0-1) or absolute pixels matching capture
+        // If they are absolute pixels from capture, they should map directly.
+        // For normalized: x = x * screenWidth, y = y * screenHeight
+        // For now, assume coordinates directly map.
 
-        // Create swipe gesture
-        Path path = new Path();
-        path.moveTo(clampedStartX, clampedStartY);
-        path.lineTo(clampedEndX, clampedEndY);
+        Path swipePath = new Path();
+        swipePath.moveTo(startX, startY);
+        swipePath.lineTo(endX, endY);
 
         GestureDescription.Builder gestureBuilder = new GestureDescription.Builder();
-        GestureDescription.StrokeDescription strokeDescription =
-            new GestureDescription.StrokeDescription(path, 0, 300); // 300ms swipe
-        gestureBuilder.addStroke(strokeDescription);
 
-        GestureDescription gesture = gestureBuilder.build();
+        // Start stroke (finger down)
+        gestureBuilder.addStroke(new GestureDescription.StrokeDescription(swipePath, downTime, duration));
 
-        dispatchGesture(gesture, new GestureResultCallback() {
+        // Execute the gesture
+        boolean dispatched = dispatchGesture(gestureBuilder.build(), new GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
-                Log.d(TAG, "Swipe gesture completed from (" + clampedStartX + ", " + clampedStartY +
-                            ") to (" + clampedEndX + ", " + clampedEndY + ")");
+                super.onCompleted(gestureDescription);
+                Log.d(TAG, "Gesture completed: " + gestureDescription.toString());
             }
 
             @Override
             public void onCancelled(GestureDescription gestureDescription) {
-                Log.w(TAG, "Swipe gesture cancelled");
+                super.onCancelled(gestureDescription);
+                Log.e(TAG, "Gesture cancelled: " + gestureDescription.toString());
             }
         }, null);
+
+        if (!dispatched) {
+            Log.e(TAG, "Failed to dispatch gesture.");
+        }
+    }
+
+    /**
+     * Updates the internal screen dimensions based on the latest capture dimensions
+     * received from ScreenCaptureService. This is critical for accurate coordinate mapping.
+     * @param width The width of the captured screen.
+     * @param height The height of the captured screen.
+     */
+    public void updateScreenDimensions(int width, int height) {
+        this.screenWidth = width;
+        this.screenHeight = height;
+        Log.d(TAG, "Updated TouchInputService screen dimensions to: " + width + "x" + height);
+        // Recalculate scaling factors if needed based on host (iPad) vs target (Samsung)
     }
 }
