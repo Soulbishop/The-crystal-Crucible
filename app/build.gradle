@@ -30,4 +30,8 @@ dependencies {
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.core:core:1.9.0'
     implementation 'com.google.android.material:material:1.8.0'
+
+    // NanoHTTPD and NanoWSD dependencies
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
 }
