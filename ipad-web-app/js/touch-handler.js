@@ -1,6 +1,7 @@
 /**
- * Touch Handler for Screen Mirror PWA
- * Manages touch events on iPad and converts them for Samsung device
+ * 🧪 Touch Handler - ALCHEMICAL EDITION
+ * 🔴 Optimized for iPad Air 2 touch processing
+ * 🔵 Enhanced gesture recognition for Samsung Galaxy S22 Ultra
  */
 
 class TouchHandler {
@@ -15,387 +16,369 @@ class TouchHandler {
             coordinateMapper: options.coordinateMapper
         };
         
-        this.isEnabled = false;
-        this.activeTouches = new Map();
-        this.gestureState = {
-            type: 'none',
-            startTime: 0,
-            startDistance: 0,
-            lastDistance: 0,
-            center: { x: 0, y: 0 }
+        // 🔴 CRIMSON VARIABLES - Touch State Management
+        this.isTracking = false;
+        this.touchStartTime = 0;
+        this.lastTouchTime = 0;
+        this.touchSequence = [];
+        
+        // 🔵 AZURE VARIABLES - Gesture Recognition
+        this.gestureThresholds = {
+            tap: { maxDuration: 200, maxMovement: 10 },
+            longPress: { minDuration: 800, maxMovement: 15 },
+            swipe: { minDistance: 50, maxDuration: 500 },
+            pinch: { minDistance: 20 }
         };
         
-        this.longPressTimer = null;
-        this.longPressThreshold = 500; // ms
-        this.tapThreshold = 10; // pixels
-        this.doubleTapThreshold = 300; // ms
-        this.lastTapTime = 0;
-        this.lastTapPosition = { x: 0, y: 0 };
+        // ⚗️ HERMETIC VARIABLES - iPad Air 2 Optimization
+        this.touchBuffer = [];
+        this.maxBufferSize = 10;
+        this.processingTimeout = null;
         
-        this.init();
+        this.initializeAlchemicalTouch();
+        console.log('🧪 Touch Handler initialized - Alchemical gestures ready');
     }
     
-    init() {
-        this.setupEventListeners();
-        this.enable();
-        console.log('Touch handler initialized');
-    }
-    
-    setupEventListeners() {
-        // Touch events
+    initializeAlchemicalTouch() {
+        if (!this.canvas) {
+            console.error('🔴 Canvas not found - touch alchemy failed');
+            return;
+        }
+        
+        // 🧪 Prevent default touch behaviors
+        this.canvas.style.touchAction = 'none';
+        this.canvas.style.userSelect = 'none';
+        
+        // 🔴 Single touch events
         this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
         this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
         this.canvas.addEventListener('touchcancel', (e) => this.handleTouchCancel(e), { passive: false });
         
-        // Mouse events for desktop testing
+        // 🔵 Mouse events for testing on desktop
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-        this.canvas.addEventListener('mouseleave', (e) => this.handleMouseLeave(e));
         
-        // Prevent context menu
+        // ⚗️ Prevent context menu
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        
-        // Prevent default touch behaviors
-        this.canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-        this.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-    }
-    
-    enable() {
-        this.isEnabled = true;
-        this.canvas.style.pointerEvents = 'auto';
-    }
-    
-    disable() {
-        this.isEnabled = false;
-        this.canvas.style.pointerEvents = 'none';
-        this.clearAllTouches();
     }
     
     handleTouchStart(event) {
-        if (!this.isEnabled) return;
+        event.preventDefault();
         
-        const touches = Array.from(event.changedTouches);
+        const touches = Array.from(event.touches);
+        const touch = touches[0];
         
-        touches.forEach(touch => {
-            const coords = this.getTouchCoordinates(touch);
-            const touchData = {
-                id: touch.identifier,
-                x: coords.x,
-                y: coords.y,
-                pressure: touch.force || 1.0,
-                timestamp: Date.now()
-            };
-            
-            this.activeTouches.set(touch.identifier, touchData);
-        });
+        if (!touch) return;
         
-        this.updateGestureState();
-        this.handleGestureStart();
+        // 🔴 Initialize touch tracking
+        this.isTracking = true;
+        this.touchStartTime = Date.now();
+        this.lastTouchTime = this.touchStartTime;
+        
+        const coords = this.getCanvasCoordinates(touch);
+        
+        // 🧪 Start new touch sequence
+        this.touchSequence = [{
+            x: coords.x,
+            y: coords.y,
+            timestamp: this.touchStartTime,
+            type: 'start'
+        }];
+        
+        // 🔵 Handle multi-touch for gestures
+        if (touches.length > 1) {
+            this.handleMultiTouch(touches, 'start');
+        } else {
+            this.processSingleTouch(coords, 'start');
+        }
+        
+        console.log('🧪 Touch sequence initiated:', coords);
     }
     
     handleTouchMove(event) {
-        if (!this.isEnabled) return;
+        event.preventDefault();
         
-        const touches = Array.from(event.changedTouches);
+        if (!this.isTracking) return;
         
-        touches.forEach(touch => {
-            if (this.activeTouches.has(touch.identifier)) {
-                const coords = this.getTouchCoordinates(touch);
-                const touchData = this.activeTouches.get(touch.identifier);
-                
-                touchData.x = coords.x;
-                touchData.y = coords.y;
-                touchData.pressure = touch.force || 1.0;
-                touchData.timestamp = Date.now();
-            }
+        const touches = Array.from(event.touches);
+        const touch = touches[0];
+        
+        if (!touch) return;
+        
+        const coords = this.getCanvasCoordinates(touch);
+        const currentTime = Date.now();
+        
+        // 🔴 Add to touch sequence
+        this.touchSequence.push({
+            x: coords.x,
+            y: coords.y,
+            timestamp: currentTime,
+            type: 'move'
         });
         
-        this.updateGestureState();
-        this.handleGestureMove();
+        // ⚗️ Limit sequence length for iPad Air 2 memory
+        if (this.touchSequence.length > 20) {
+            this.touchSequence.shift();
+        }
+        
+        // 🔵 Handle multi-touch gestures
+        if (touches.length > 1) {
+            this.handleMultiTouch(touches, 'move');
+        } else {
+            this.processSingleTouch(coords, 'move');
+        }
+        
+        this.lastTouchTime = currentTime;
     }
     
     handleTouchEnd(event) {
-        if (!this.isEnabled) return;
+        event.preventDefault();
         
-        const touches = Array.from(event.changedTouches);
+        if (!this.isTracking) return;
         
-        touches.forEach(touch => {
-            this.activeTouches.delete(touch.identifier);
-        });
+        const endTime = Date.now();
+        const duration = endTime - this.touchStartTime;
         
-        this.updateGestureState();
-        this.handleGestureEnd();
+        // 🔴 Finalize touch sequence
+        if (this.touchSequence.length > 0) {
+            const lastTouch = this.touchSequence[this.touchSequence.length - 1];
+            this.touchSequence.push({
+                x: lastTouch.x,
+                y: lastTouch.y,
+                timestamp: endTime,
+                type: 'end'
+            });
+        }
+        
+        // 🧪 Analyze gesture
+        const gesture = this.analyzeGesture(this.touchSequence, duration);
+        
+        // 🔵 Send final touch event
+        if (gesture) {
+            this.sendTouchEvent(gesture);
+        }
+        
+        // ⚗️ Reset tracking state
+        this.isTracking = false;
+        this.touchSequence = [];
+        
+        console.log('🧪 Touch sequence completed:', gesture?.type || 'unknown');
     }
     
     handleTouchCancel(event) {
-        this.handleTouchEnd(event);
+        event.preventDefault();
+        this.isTracking = false;
+        this.touchSequence = [];
+        console.log('⚗️ Touch sequence cancelled');
     }
     
-    // Mouse events for desktop testing
-    handleMouseDown(event) {
-        if (!this.isEnabled) return;
-        
-        const coords = this.getMouseCoordinates(event);
-        const touchData = {
-            id: 'mouse',
+    handleMultiTouch(touches, phase) {
+        if (touches.length === 2) {
+            // 🔴 Handle pinch/zoom gesture
+            const touch1 = this.getCanvasCoordinates(touches[0]);
+            const touch2 = this.getCanvasCoordinates(touches[1]);
+            
+            const distance = this.calculateDistance(touch1, touch2);
+            const center = {
+                x: (touch1.x + touch2.x) / 2,
+                y: (touch1.y + touch2.y) / 2
+            };
+            
+            const gesture = {
+                type: 'pinch',
+                action: phase,
+                x: center.x,
+                y: center.y,
+                distance: distance,
+                touches: [touch1, touch2]
+            };
+            
+            this.sendTouchEvent(gesture);
+        }
+    }
+    
+    processSingleTouch(coords, action) {
+        // 🔵 Add to processing buffer
+        this.touchBuffer.push({
             x: coords.x,
             y: coords.y,
-            pressure: 1.0,
+            action: action,
             timestamp: Date.now()
-        };
+        });
         
-        this.activeTouches.set('mouse', touchData);
-        this.updateGestureState();
-        this.handleGestureStart();
+        // ⚗️ Process buffer with delay for gesture recognition
+        if (this.processingTimeout) {
+            clearTimeout(this.processingTimeout);
+        }
+        
+        this.processingTimeout = setTimeout(() => {
+            this.processBufferedTouches();
+        }, 16); // ~60fps processing rate
     }
     
-    handleMouseMove(event) {
-        if (!this.isEnabled || !this.activeTouches.has('mouse')) return;
+    processBufferedTouches() {
+        if (this.touchBuffer.length === 0) return;
         
-        const coords = this.getMouseCoordinates(event);
-        const touchData = this.activeTouches.get('mouse');
+        // 🧪 Process most recent touch from buffer
+        const touch = this.touchBuffer[this.touchBuffer.length - 1];
+        this.touchBuffer = []; // Clear buffer
         
-        touchData.x = coords.x;
-        touchData.y = coords.y;
-        touchData.timestamp = Date.now();
-        
-        this.updateGestureState();
-        this.handleGestureMove();
-    }
-    
-    handleMouseUp(event) {
-        if (!this.isEnabled) return;
-        
-        this.activeTouches.delete('mouse');
-        this.updateGestureState();
-        this.handleGestureEnd();
-    }
-    
-    handleMouseLeave(event) {
-        this.handleMouseUp(event);
-    }
-    
-    getTouchCoordinates(touch) {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (touch.clientX - rect.left) * this.options.sensitivity;
-        const y = (touch.clientY - rect.top) * this.options.sensitivity;
-        
-        return this.options.coordinateMapper ? 
-            this.options.coordinateMapper.mapCoordinates(x, y) : 
-            { x, y };
-    }
-    
-    getMouseCoordinates(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (event.clientX - rect.left) * this.options.sensitivity;
-        const y = (event.clientY - rect.top) * this.options.sensitivity;
-        
-        return this.options.coordinateMapper ? 
-            this.options.coordinateMapper.mapCoordinates(x, y) : 
-            { x, y };
-    }
-    
-    updateGestureState() {
-        const touchCount = this.activeTouches.size;
-        const now = Date.now();
-        
-        if (touchCount === 0) {
-            this.gestureState.type = 'none';
-        } else if (touchCount === 1) {
-            const touch = Array.from(this.activeTouches.values())[0];
+        const mappedCoords = this.mapCoordinates(touch.x, touch.y);
+        if (mappedCoords) {
+            const touchEvent = {
+                type: 'touch',
+                action: touch.action,
+                x: mappedCoords.x,
+                y: mappedCoords.y,
+                pressure: 1.0,
+                timestamp: touch.timestamp
+            };
             
-            if (this.gestureState.type === 'none') {
-                this.gestureState.type = 'tap';
-                this.gestureState.startTime = now;
-                this.gestureState.center = { x: touch.x, y: touch.y };
-            } else if (this.gestureState.type === 'tap') {
-                const distance = this.calculateDistance(
-                    this.gestureState.center,
-                    { x: touch.x, y: touch.y }
-                );
-                
-                if (distance > this.tapThreshold) {
-                    this.gestureState.type = 'drag';
-                } else if (now - this.gestureState.startTime > this.longPressThreshold) {
-                    this.gestureState.type = 'long-press';
-                }
-            }
-        } else if (touchCount === 2) {
-            const touches = Array.from(this.activeTouches.values());
-            const distance = this.calculateDistance(touches[0], touches[1]);
-            const center = this.calculateCenter(touches[0], touches[1]);
-            
-            if (this.gestureState.type !== 'pinch') {
-                this.gestureState.type = 'pinch';
-                this.gestureState.startTime = now;
-                this.gestureState.startDistance = distance;
-                this.gestureState.center = center;
-            }
-            
-            this.gestureState.lastDistance = distance;
-            this.gestureState.center = center;
-        } else {
-            this.gestureState.type = 'multi-touch';
+            this.options.onTouch(touchEvent);
         }
     }
     
-    handleGestureStart() {
-        const touchCount = this.activeTouches.size;
+    analyzeGesture(sequence, duration) {
+        if (sequence.length < 2) return null;
         
-        if (touchCount === 1) {
-            const touch = Array.from(this.activeTouches.values())[0];
-            
-            // Start long press timer
-            this.longPressTimer = setTimeout(() => {
-                if (this.gestureState.type === 'tap') {
-                    this.sendTouchEvent('long-press', touch.x, touch.y);
-                    this.provideFeedback();
-                }
-            }, this.longPressThreshold);
-            
-            // Send touch down event
-            this.sendTouchEvent('down', touch.x, touch.y);
-        } else if (touchCount === 2) {
-            // Clear long press timer for multi-touch
-            this.clearLongPressTimer();
-            
-            const touches = Array.from(this.activeTouches.values());
-            this.sendPinchEvent('start', touches[0], touches[1]);
-        }
-    }
-    
-    handleGestureMove() {
-        const touchCount = this.activeTouches.size;
+        const start = sequence[0];
+        const end = sequence[sequence.length - 1];
+        const movement = this.calculateDistance(start, end);
         
-        if (touchCount === 1) {
-            const touch = Array.from(this.activeTouches.values())[0];
-            
-            if (this.gestureState.type === 'drag') {
-                this.sendTouchEvent('move', touch.x, touch.y);
+        // 🔴 Determine gesture type
+        if (movement <= this.gestureThresholds.tap.maxMovement) {
+            if (duration <= this.gestureThresholds.tap.maxDuration) {
+                return this.createGesture('tap', end, { duration });
+            } else if (duration >= this.gestureThresholds.longPress.minDuration) {
+                return this.createGesture('long_press', end, { duration });
             }
-        } else if (touchCount === 2 && this.gestureState.type === 'pinch') {
-            const touches = Array.from(this.activeTouches.values());
-            this.sendPinchEvent('move', touches[0], touches[1]);
+        } else if (movement >= this.gestureThresholds.swipe.minDistance && 
+                   duration <= this.gestureThresholds.swipe.maxDuration) {
+            const direction = this.calculateSwipeDirection(start, end);
+            return this.createGesture('swipe', end, { direction, distance: movement });
         }
+        
+        // 🔵 Default to drag gesture
+        return this.createGesture('drag', end, { distance: movement, duration });
     }
     
-    handleGestureEnd() {
-        const touchCount = this.activeTouches.size;
+    createGesture(type, coords, properties = {}) {
+        const mappedCoords = this.mapCoordinates(coords.x, coords.y);
+        if (!mappedCoords) return null;
         
-        this.clearLongPressTimer();
-        
-        if (touchCount === 0) {
-            if (this.gestureState.type === 'tap') {
-                const touch = this.gestureState.center;
-                const now = Date.now();
-                
-                // Check for double tap
-                if (now - this.lastTapTime < this.doubleTapThreshold &&
-                    this.calculateDistance(touch, this.lastTapPosition) < this.tapThreshold) {
-                    this.sendTouchEvent('double-tap', touch.x, touch.y);
-                } else {
-                    this.sendTouchEvent('tap', touch.x, touch.y);
-                }
-                
-                this.lastTapTime = now;
-                this.lastTapPosition = { x: touch.x, y: touch.y };
-                this.provideFeedback();
-                
-            } else if (this.gestureState.type === 'drag') {
-                const touch = this.gestureState.center;
-                this.sendTouchEvent('up', touch.x, touch.y);
-                
-            } else if (this.gestureState.type === 'pinch') {
-                const touches = Array.from(this.activeTouches.values());
-                if (touches.length >= 2) {
-                    this.sendPinchEvent('end', touches[0], touches[1]);
-                }
-            }
-        }
-    }
-    
-    sendTouchEvent(type, x, y, pressure = 1.0) {
-        const touchData = {
+        return {
             type: type,
-            x: Math.round(x),
-            y: Math.round(y),
-            pressure: pressure,
+            action: 'gesture',
+            x: mappedCoords.x,
+            y: mappedCoords.y,
+            gesture: {
+                type: type,
+                ...properties
+            },
             timestamp: Date.now()
         };
-        
-        this.options.onTouch(touchData);
-        
-        // Show visual feedback
-        if (this.options.showIndicator && (type === 'tap' || type === 'down')) {
-            this.showTouchIndicator(x, y);
-        }
     }
     
-    sendPinchEvent(phase, touch1, touch2) {
-        const center = this.calculateCenter(touch1, touch2);
-        const distance = this.calculateDistance(touch1, touch2);
-        const scale = this.gestureState.startDistance > 0 ? 
-            distance / this.gestureState.startDistance : 1.0;
+    calculateSwipeDirection(start, end) {
+        const deltaX = end.x - start.x;
+        const deltaY = end.y - start.y;
+        const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
         
-        const pinchData = {
-            type: 'pinch',
-            phase: phase,
-            x: Math.round(center.x),
-            y: Math.round(center.y),
-            scale: scale,
-            distance: distance,
-            timestamp: Date.now()
-        };
+        // 🧪 Determine primary direction
+        if (angle >= -45 && angle <= 45) return 'right';
+        if (angle >= 45 && angle <= 135) return 'down';
+        if (angle >= 135 || angle <= -135) return 'left';
+        if (angle >= -135 && angle <= -45) return 'up';
         
-        this.options.onTouch(pinchData);
+        return 'unknown';
     }
     
     calculateDistance(point1, point2) {
-        const dx = point1.x - point2.x;
-        const dy = point1.y - point2.y;
-        return Math.sqrt(dx * dx + dy * dy);
+        const deltaX = point2.x - point1.x;
+        const deltaY = point2.y - point1.y;
+        return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     }
     
-    calculateCenter(point1, point2) {
+    getCanvasCoordinates(touch) {
+        const rect = this.canvas.getBoundingClientRect();
         return {
-            x: (point1.x + point2.x) / 2,
-            y: (point1.y + point2.y) / 2
+            x: touch.clientX - rect.left,
+            y: touch.clientY - rect.top
         };
     }
     
-    clearLongPressTimer() {
-        if (this.longPressTimer) {
-            clearTimeout(this.longPressTimer);
-            this.longPressTimer = null;
+    mapCoordinates(x, y) {
+        if (this.options.coordinateMapper) {
+            return this.options.coordinateMapper.mapCoordinates(x, y);
         }
+        return { x, y };
     }
     
-    clearAllTouches() {
-        this.activeTouches.clear();
-        this.gestureState.type = 'none';
-        this.clearLongPressTimer();
-    }
-    
-    showTouchIndicator(x, y) {
-        // This will be handled by the main app
-        // Just trigger the visual feedback
-        const event = new CustomEvent('touchIndicator', {
-            detail: { x, y }
-        });
-        this.canvas.dispatchEvent(event);
-    }
-    
-    provideFeedback() {
+    sendTouchEvent(touchData) {
+        // 🔴 Apply haptic feedback
         if (this.options.hapticFeedback && navigator.vibrate) {
-            navigator.vibrate(10);
+            const vibrationPattern = this.getVibrationPattern(touchData.type);
+            navigator.vibrate(vibrationPattern);
+        }
+        
+        // 🔵 Show visual indicator
+        if (this.options.showIndicator) {
+            this.showTouchIndicator(touchData.x, touchData.y, touchData.type);
+        }
+        
+        // ⚗️ Send to callback
+        this.options.onTouch(touchData);
+    }
+    
+    getVibrationPattern(gestureType) {
+        // 🧪 Different vibration patterns for different gestures
+        switch (gestureType) {
+            case 'tap': return [10];
+            case 'long_press': return [20, 10, 20];
+            case 'swipe': return [15];
+            case 'pinch': return [5, 5, 5];
+            default: return [10];
         }
     }
     
-    // Settings update methods
+    showTouchIndicator(x, y, type) {
+        // 🔴 Visual feedback implementation would go here
+        // For now, just log the touch
+        console.log(`🧪 Touch indicator: ${type} at (${x}, ${y})`);
+    }
+    
+    // 🔵 Mouse event handlers for desktop testing
+    handleMouseDown(event) {
+        const coords = this.getCanvasCoordinates(event);
+        this.handleTouchStart({ 
+            touches: [{ clientX: event.clientX, clientY: event.clientY }],
+            preventDefault: () => event.preventDefault()
+        });
+    }
+    
+    handleMouseMove(event) {
+        if (!this.isTracking) return;
+        this.handleTouchMove({
+            touches: [{ clientX: event.clientX, clientY: event.clientY }],
+            preventDefault: () => event.preventDefault()
+        });
+    }
+    
+    handleMouseUp(event) {
+        if (!this.isTracking) return;
+        this.handleTouchEnd({
+            preventDefault: () => event.preventDefault()
+        });
+    }
+    
+    // 🧪 Configuration methods
     updateSensitivity(sensitivity) {
         this.options.sensitivity = sensitivity;
+        if (this.options.coordinateMapper) {
+            this.options.coordinateMapper.updateSensitivity(sensitivity);
+        }
     }
     
     updateGestureDelay(delay) {
@@ -409,14 +392,4 @@ class TouchHandler {
     updateHapticFeedback(enabled) {
         this.options.hapticFeedback = enabled;
     }
-    
-    // Debug methods
-    getActiveTouches() {
-        return Array.from(this.activeTouches.values());
-    }
-    
-    getGestureState() {
-        return { ...this.gestureState };
-    }
 }
-
