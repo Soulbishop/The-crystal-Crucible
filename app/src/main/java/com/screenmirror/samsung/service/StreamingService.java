@@ -8,10 +8,11 @@ import android.os.IBinder;
 import android.text.format.Formatter;
 import android.util.Log;
 
+// Corrected NanoHTTPD imports
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.WebSocket;
-import fi.iki.elonen.WebSocketFrame;
+import fi.iki.elonen.NanoWSD.WebSocket; // Explicitly import WebSocket from NanoWSD
+import fi.iki.elonen.WebSocketFrame; // This should be correct
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -23,6 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+// For IHTTPSession
+import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 
 public class StreamingService extends Service {
 
@@ -110,6 +114,7 @@ public class StreamingService extends Service {
 
     private void stopWebServer() {
         if (webServer != null) {
+            // NanoWSD's stop() method is public, so this should be fine
             webServer.stop();
             webServer = null;
             Log.d(TAG, "Signaling server stopped.");
@@ -230,8 +235,7 @@ public class StreamingService extends Service {
         } catch (JSONException e) { // Catch block for the try statement
             Log.e(TAG, "Error parsing signaling message JSON: " + e.getMessage(), e);
         }
-        // IMPORTANT: The closing brace for the handleSignalingMessage method was missing
-    } // This was the missing closing brace for handleSignalingMessage method
+    }
 
     // You might want to get the local IP address for display
     public String getLocalIpAddress(Context context) {
@@ -247,25 +251,29 @@ public class StreamingService extends Service {
     // Inner class for the WebSocket server
     private static class ScreenMirrorWebServer extends NanoWSD {
         private StreamingService serviceContext;
-        private WebSocket currentWebSocket;
+        // Changed to SignalingWebSocket to avoid incompatible type error
+        private SignalingWebSocket currentWebSocket; 
 
         public ScreenMirrorWebServer(int port, StreamingService serviceContext) {
             super(port);
             this.serviceContext = serviceContext;
         }
 
-        public WebSocket getCurrentWebSocket() {
+        // Return SignalingWebSocket instead of generic WebSocket
+        public SignalingWebSocket getCurrentWebSocket() { 
             return currentWebSocket;
         }
 
         @Override
-        protected WebSocket openWebSocket(IHTTPSession handshake) {
+        // Return SignalingWebSocket as per the type of currentWebSocket
+        protected WebSocket openWebSocket(IHTTPSession handshake) { 
             Log.d(TAG, "WebSocket opened from " + handshake.getRemoteIpAddress());
             // Close any existing WebSocket to ensure only one client is connected at a time
             if (currentWebSocket != null && currentWebSocket.isOpen()) {
                 Log.d(TAG, "Closing previous WebSocket connection.");
                 try {
-                    currentWebSocket.close(WebSocketFrame.CloseCode.NORMAL, "New connection established", false);
+                    // Use NanoHTTPD's WebSocketFrame.CloseCode
+                    currentWebSocket.close(WebSocketFrame.CloseCode.NORMAL, "New connection established", false); 
                 } catch (IOException e) {
                     Log.e(TAG, "Error closing previous WebSocket: " + e.getMessage());
                 }
