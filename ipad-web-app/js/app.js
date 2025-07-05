@@ -47,11 +47,12 @@ class ScreenMirrorApp {
     
     initializeComponents() {
         // Initialize coordinate mapper for iPad Air 2 to Samsung Galaxy S22 Ultra
+        // These are initial default values, will be updated by device discovery
         this.coordinateMapper = new CoordinateMapper({
             sourceWidth: 2048,  // iPad Air 2 width
             sourceHeight: 1536, // iPad Air 2 height
-            targetWidth: 3088,  // Samsung Galaxy S22 Ultra width
-            targetHeight: 1440  // Samsung Galaxy S22 Ultra height
+            targetWidth: 1080,  // Default assumed Samsung width (will be updated)
+            targetHeight: 2316  // Default assumed Samsung height (will be updated)
         });
         
         // Initialize video display
@@ -254,23 +255,41 @@ class ScreenMirrorApp {
     
     async manualConnect() {
         const ipInput = document.getElementById('manualIP');
-        const ipAddress = ipInput.value.trim();
-        
-        if (!ipAddress) {
-            this.showToast('Please enter an IP address', 'warning');
+        let fullAddress = ipInput.value.trim(); // Get the full string from input
+        let ipAddress;
+        let port = 8080; // Default port
+
+        // Regex to parse IP and optional port
+        const ipPortRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::(\d+))?$/;
+        const match = fullAddress.match(ipPortRegex);
+
+        if (!match) {
+            this.showToast('Please enter a valid IP address (e.g., 192.168.1.100 or 192.168.1.100:8080)', 'error');
             return;
         }
-        
-        // Validate IP address format
-        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-        if (!ipRegex.test(ipAddress)) {
-            this.showToast('Please enter a valid IP address', 'error');
+
+        ipAddress = match[0]; // Full matched string, without port if not specified
+        if (match[1]) { // If port group was captured
+            port = parseInt(match[1], 10);
+            ipAddress = fullAddress.substring(0, fullAddress.indexOf(':')); // Extract just the IP part
+        }
+
+        // Basic IP range validation for 0-255 in each octet
+        const octets = ipAddress.split('.').map(Number);
+        if (octets.length !== 4 || octets.some(octet => octet < 0 || octet > 255)) {
+            this.showToast('Invalid IP address range. Each part must be 0-255.', 'error');
+            return;
+        }
+
+        // Port validation
+        if (port < 1 || port > 65535) {
+            this.showToast('Invalid port number. Must be between 1 and 65535.', 'error');
             return;
         }
         
         try {
-            this.showLoading('Connecting to ' + ipAddress + '...');
-            await this.webrtcClient.connect(ipAddress, 8080);
+            this.showLoading('Connecting to ' + ipAddress + ':' + port + '...');
+            await this.webrtcClient.connect(ipAddress, port);
         } catch (error) {
             console.error('Manual connection failed:', error);
             this.hideLoading();
@@ -327,6 +346,7 @@ class ScreenMirrorApp {
                 videoContainer.style.display = 'none';
                 this.isConnected = false;
                 this.hideLoading();
+                this.showToast('Disconnected successfully', 'success');
                 break;
                 
             case 'failed':
@@ -568,4 +588,3 @@ window.addEventListener('beforeinstallprompt', (e) => {
 window.addEventListener('appinstalled', (evt) => {
     console.log('App was installed successfully');
 });
-
