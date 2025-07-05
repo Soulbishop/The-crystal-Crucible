@@ -211,4 +211,144 @@ public class StreamingService extends Service {
                     if (listener != null) listener.onIceCandidateReceived(candidate);
                     Log.d(TAG, "Received ICE Candidate");
                     break;
-                case "touch": //
+                case "touch": // You would add more cases here for touch events (e.g., "longpress", "swipe", "pinch")
+                    // Example of handling touch (you'll need to parse x, y, etc., from the JSON)
+                    // if (touchCallback != null) {
+                    //     float x = (float) json.getDouble("x");
+                    //     float y = (float) json.getDouble("y");
+                    //     touchCallback.onTouchReceived(x, y);
+                    //     Log.d(TAG, "Received Touch: x=" + x + ", y=" + y);
+                    // }
+                    break; // IMPORTANT: Add break for each case!
+                // Add more cases here for other signaling types like "longpress", "swipe", "pinch" etc.
+                // based on what your client sends and what you define in TouchCallback interface.
+
+                default:
+                    Log.w(TAG, "Unknown signaling message type: " + type);
+                    break;
+            }
+        } catch (JSONException e) { // Catch block for the try statement
+            Log.e(TAG, "Error parsing signaling message JSON: " + e.getMessage(), e);
+        }
+        // IMPORTANT: The closing brace for the handleSignalingMessage method was missing
+    } // This was the missing closing brace for handleSignalingMessage method
+
+    // You might want to get the local IP address for display
+    public String getLocalIpAddress(Context context) {
+        WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wifiManager != null) {
+            int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
+            return Formatter.formatIpAddress(ipAddress);
+        }
+        return null;
+    }
+
+
+    // Inner class for the WebSocket server
+    private static class ScreenMirrorWebServer extends NanoWSD {
+        private StreamingService serviceContext;
+        private WebSocket currentWebSocket;
+
+        public ScreenMirrorWebServer(int port, StreamingService serviceContext) {
+            super(port);
+            this.serviceContext = serviceContext;
+        }
+
+        public WebSocket getCurrentWebSocket() {
+            return currentWebSocket;
+        }
+
+        @Override
+        protected WebSocket openWebSocket(IHTTPSession handshake) {
+            Log.d(TAG, "WebSocket opened from " + handshake.getRemoteIpAddress());
+            // Close any existing WebSocket to ensure only one client is connected at a time
+            if (currentWebSocket != null && currentWebSocket.isOpen()) {
+                Log.d(TAG, "Closing previous WebSocket connection.");
+                try {
+                    currentWebSocket.close(WebSocketFrame.CloseCode.NORMAL, "New connection established", false);
+                } catch (IOException e) {
+                    Log.e(TAG, "Error closing previous WebSocket: " + e.getMessage());
+                }
+            }
+            // Set the new WebSocket as the current one
+            this.currentWebSocket = new SignalingWebSocket(handshake, serviceContext);
+
+            // Notify service listener about new client
+            if (serviceContext.listener != null) {
+                serviceContext.listener.onClientConnected(handshake.getRemoteIpAddress());
+            }
+
+            // If there are pending SDP or ICE candidates, send them to the newly connected client
+            serviceContext.executor.execute(() -> {
+                try {
+                    // Send pending SDP first
+                    String pendingSdp = serviceContext.getPendingSdp();
+                    if (pendingSdp != null) {
+                        JSONObject json = new JSONObject();
+                        // Determine if it's an offer or answer based on your application's logic
+                        // For simplicity, assume it's an offer if stored, or you might need another field
+                        json.put("type", "offer"); // Assuming the stored SDP is an offer
+                        json.put("sdp", pendingSdp);
+                        currentWebSocket.send(json.toString());
+                        serviceContext.clearPendingSdp(); // Clear after sending
+                        Log.d(TAG, "Sent pending SDP to new client.");
+                    }
+
+                    // Send all pending ICE candidates
+                    List<String> candidatesToSend = new ArrayList<>(serviceContext.getPendingIceCandidates());
+                    for (String candidate : candidatesToSend) {
+                        JSONObject json = new JSONObject();
+                        json.put("type", "candidate");
+                        json.put("candidate", candidate);
+                        currentWebSocket.send(json.toString());
+                        Log.d(TAG, "Sent pending ICE Candidate to new client: " + candidate);
+                    }
+                    serviceContext.clearPendingIceCandidates(); // Clear after sending
+                } catch (IOException | JSONException e) {
+                    Log.e(TAG, "Error sending pending messages to new client: " + e.getMessage(), e);
+                }
+            });
+
+            return currentWebSocket;
+        }
+    }
+
+    private static class SignalingWebSocket extends WebSocket {
+        private StreamingService serviceContext;
+
+        public SignalingWebSocket(IHTTPSession handshake, StreamingService serviceContext) {
+            super(handshake);
+            this.serviceContext = serviceContext;
+        }
+
+        @Override
+        protected void onOpen() {
+            Log.d(TAG, "WebSocket connection opened.");
+        }
+
+        @Override
+        protected void onClose(WebSocketFrame.CloseCode code, String reason, boolean initiatedByRemote) {
+            Log.d(TAG, "WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
+            if (serviceContext.listener != null) {
+                serviceContext.listener.onClientDisconnected();
+            }
+        }
+
+        @Override
+        protected void onMessage(WebSocketFrame message) {
+            String msg = message.getTextPayload();
+            Log.d(TAG, "Received WebSocket message: " + msg);
+            serviceContext.handleSignalingMessage(msg);
+        }
+
+        @Override
+        protected void onPong(WebSocketFrame pong) {
+            Log.d(TAG, "Received Pong");
+        }
+
+        @Override
+        protected void onException(IOException exception) {
+            Log.e(TAG, "WebSocket error: " + exception.getMessage(), exception);
+        }
+    }
+}
