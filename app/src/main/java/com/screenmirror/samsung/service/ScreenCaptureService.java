@@ -17,6 +17,7 @@ import android.os.IBinder;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
+import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 import java.nio.ByteBuffer;
 
@@ -24,7 +25,7 @@ import com.screenmirror.samsung.R;
 
 public class ScreenCaptureService extends Service {
 
-    private static final String TAG = "ScreenCaptureService"; // Keep this tag
+    private static final String TAG = "ScreenCaptureService";
     private static final int NOTIFICATION_ID = 1001;
     private static final String CHANNEL_ID = "screen_capture_channel";
 
@@ -48,42 +49,43 @@ public class ScreenCaptureService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        Log.d(TAG, "Service: onCreate() called."); // Debug Log
-        createNotificationChannel();
-        getScreenMetrics();
+        Toast.makeText(this, "Service: onCreate Started!", Toast.LENGTH_SHORT).show(); // FIRST SERVICE TOAST
+        Log.d(TAG, "ScreenCaptureService: onCreate called.");
+
+        // --- MOVED getScreenMetrics() here ---
+        try {
+            getScreenMetrics();
+            Toast.makeText(this, "Service: Metrics Obtained!", Toast.LENGTH_SHORT).show(); // New Toast
+            Log.d(TAG, "ScreenCaptureService: Screen metrics obtained in onCreate.");
+        } catch (Exception e) {
+            Log.e(TAG, "ScreenCaptureService: Error getting screen metrics in onCreate: " + e.getMessage(), e);
+            Toast.makeText(this, "Service: Metrics Error!", Toast.LENGTH_LONG).show(); // Critical error toast
+            // Consider stopping service here if this is fatal
+        }
+        // --- End moved getScreenMetrics() ---
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "Service: onStartCommand() entry."); // Debug Log
+        Toast.makeText(this, "Service: onStartCommand entry", Toast.LENGTH_SHORT).show(); // SECOND SERVICE TOAST
+        Log.d(TAG, "ScreenCaptureService: onStartCommand called, attempting foreground.");
+
+        createNotificationChannel(); // Channel must exist before notification
+        startForeground(NOTIFICATION_ID, createNotification());
+        Toast.makeText(this, "Service: Foreground Initiated!", Toast.LENGTH_SHORT).show(); // THIRD SERVICE TOAST
+        Log.d(TAG, "ScreenCaptureService: Foreground service started.");
+
         int resultCode = intent.getIntExtra("resultCode", 0);
         Intent data = intent.getParcelableExtra("data");
 
-        Log.d(TAG, "Service: onStartCommand - resultCode: " + resultCode + ", data is null: " + (data == null)); // Debug Log
-
         if (resultCode != 0 && data != null) {
-            Log.d(TAG, "Service: MediaProjection data received. Attempting to start foreground."); // Debug Log
-            try {
-                startForeground(NOTIFICATION_ID, createNotification());
-                Log.d(TAG, "Service: startForeground() successful. Notification should be visible."); // Debug Log
-            } catch (Exception e) {
-                // This catch block is highly unlikely to hit if the notification briefly appears.
-                Log.e(TAG, "Service: EXCEPTION during startForeground!", e);
-                stopSelf();
-                return START_NOT_STICKY; // Or START_REDELIVER_INTENT if you want the intent resent
-            }
+            Toast.makeText(this, "Service: Received MediaProjection data.", Toast.LENGTH_SHORT).show(); // FOURTH SERVICE TOAST
+            Log.d(TAG, "ScreenCaptureService: MediaProjection data received.");
 
-            // Immediately after successful startForeground, attempt screen capture
-            try {
-                startScreenCapture(resultCode, data);
-                Log.d(TAG, "Service: startScreenCapture() called successfully."); // Debug Log
-            } catch (Exception e) {
-                Log.e(TAG, "Service: CRITICAL EXCEPTION caught in startScreenCapture! Stopping service.", e);
-                stopSelf();
-                return START_NOT_STICKY;
-            }
+            startScreenCapture(resultCode, data);
         } else {
-            Log.e(TAG, "Service: No MediaProjection resultCode or data provided. Stopping service.");
+            Toast.makeText(this, "Service: No MediaProjection data! Stopping.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "ScreenCaptureService: No MediaProjection resultCode or data provided. Stopping service.");
             stopSelf();
         }
 
@@ -98,32 +100,36 @@ public class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "Service: onDestroy() called. Stopping screen capture."); // Debug Log
         stopScreenCapture();
         instance = null;
-        Log.d(TAG, "Service: ScreenCaptureService destroyed."); // Debug Log
+        Log.d(TAG, "ScreenCaptureService: onDestroy called. Service destroyed.");
+        Toast.makeText(this, "Service: onDestroy", Toast.LENGTH_SHORT).show(); // Debug Toast
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Screen Capture Service",
-                NotificationManager.IMPORTANCE_DEFAULT
-            );
-            channel.setDescription("Screen mirroring service notification");
-
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            notificationManager.createNotificationChannel(channel);
-            Log.d(TAG, "Service: Notification Channel created."); // Debug Log
+            if (notificationManager != null && notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
+                NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Screen Capture Service",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                );
+                channel.setDescription("Screen mirroring service notification");
+                notificationManager.createNotificationChannel(channel);
+                Log.d(TAG, "ScreenCaptureService: Notification channel created.");
+            } else if (notificationManager != null) {
+                Log.d(TAG, "ScreenCaptureService: Notification channel already exists.");
+            }
         }
     }
 
     private Notification createNotification() {
+        Log.d(TAG, "ScreenCaptureService: Creating notification.");
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Screen Mirroring Active")
             .setContentText("Your screen is being mirrored to iPad")
-            .setSmallIcon(R.mipmap.ic_launcher) // Ensure this resource exists and is correct
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .build();
     }
@@ -132,8 +138,7 @@ public class ScreenCaptureService extends Service {
         WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         DisplayMetrics displayMetrics = new DisplayMetrics();
 
-        // The if/else block below is functionally redundant as both branches do the same.
-        // It's harmless, but can be simplified if desired.
+        // Using modern getRealMetrics for API 30+ but keeping older path for safety, though only one is strictly needed for API 33
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             windowManager.getDefaultDisplay().getRealMetrics(displayMetrics);
         } else {
@@ -144,154 +149,119 @@ public class ScreenCaptureService extends Service {
         screenHeight = displayMetrics.heightPixels;
         screenDensity = displayMetrics.densityDpi;
 
-        // Crucial Check: Ensure metrics are not zero
-        if (screenWidth == 0 || screenHeight == 0 || screenDensity == 0) {
-            Log.e(TAG, "Service: ERROR! Screen metrics are zero or invalid! " +
-                       "Width: " + screenWidth + ", Height: " + screenHeight + ", Density: " + screenDensity);
-            // Consider throwing a RuntimeException here to crash earlier if this state is truly fatal.
-            // throw new RuntimeException("Invalid screen metrics detected.");
-        } else {
-            Log.d(TAG, "Service: Screen metrics obtained - " + screenWidth + "x" + screenHeight + ", density: " + screenDensity); // Debug Log
-        }
+        // Moved log to onCreate.
     }
 
     private void startScreenCapture(int resultCode, Intent data) {
-        Log.d(TAG, "Service: Entering startScreenCapture method."); // Debug Log
+        Toast.makeText(this, "Service: In startScreenCapture", Toast.LENGTH_SHORT).show(); // FIFTH SERVICE TOAST
+        Log.d(TAG, "ScreenCaptureService: startScreenCapture called.");
 
         MediaProjectionManager mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        if (mediaProjectionManager == null) {
-            Log.e(TAG, "Service: MediaProjectionManager is null! Cannot proceed.");
+        mediaProjection = mediaProjectionManager.getMediaProjection(
+            resultCode,
+            data
+        );
+
+        if (mediaProjection == null) {
+            Toast.makeText(this, "Service: MediaProjection NULL! Stopping.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "ScreenCaptureService: Failed to get MediaProjection object after receiving data.");
             stopSelf();
             return;
         }
+        Toast.makeText(this, "Service: MediaProjection obtained!", Toast.LENGTH_SHORT).show(); // SIXTH SERVICE TOAST
+        Log.d(TAG, "ScreenCaptureService: MediaProjection obtained.");
 
-        try {
-            Log.d(TAG, "Service: Attempting to get MediaProjection object..."); // Debug Log
-            mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
-            if (mediaProjection == null) {
-                Log.e(TAG, "Service: Failed to get MediaProjection object (returned null). Stopping service.");
-                stopSelf();
-                return;
-            }
-            Log.d(TAG, "Service: MediaProjection object obtained successfully."); // Debug Log
-        } catch (SecurityException e) {
-            Log.e(TAG, "Service: SecurityException when getting MediaProjection! Permission denied or data invalid.", e);
-            stopSelf();
-            return;
-        } catch (Exception e) {
-            Log.e(TAG, "Service: Generic EXCEPTION when getting MediaProjection!", e);
-            stopSelf();
-            return;
-        }
+        imageReader = ImageReader.newInstance(
+            screenWidth,
+            screenHeight,
+            PixelFormat.RGBA_8888,
+            2 // Max images
+        );
 
-        try {
-            Log.d(TAG, "Service: Attempting to create ImageReader. Dims: " +
-                       screenWidth + "x" + screenHeight + ", Format: RGBA_8888, Max Images: 2"); // Debug Log
-            imageReader = ImageReader.newInstance(
-                screenWidth,
-                screenHeight,
-                PixelFormat.RGBA_8888,
-                2
-            );
-            Log.d(TAG, "Service: ImageReader created successfully."); // Debug Log
-        } catch (IllegalArgumentException e) {
-            Log.e(TAG, "Service: IllegalArgumentException creating ImageReader! Check screen dimensions (" +
-                       screenWidth + "x" + screenHeight + ") or pixel format.", e);
-            stopSelf();
-            return;
-        } catch (Exception e) {
-            Log.e(TAG, "Service: Generic EXCEPTION creating ImageReader!", e);
-            stopSelf();
-            return;
-        }
-
-        // Setting the listener doesn't immediately cause a crash, but errors within it would appear later.
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
-                // Log.v(TAG, "Service: onImageAvailable triggered."); // Use 'v' or 'd' sparingly, this can be noisy.
                 android.media.Image image = null;
                 try {
+                    // Toast.makeText(ScreenCaptureService.this, "Service: Image Available!", Toast.LENGTH_SHORT).show(); // DEBUG TOAST
                     image = reader.acquireLatestImage();
                     if (image != null) {
+                        // Toast.makeText(ScreenCaptureService.this, "Service: Image Acquired!", Toast.LENGTH_SHORT).show(); // DEBUG TOAST
                         android.media.Image.Plane[] planes = image.getPlanes();
-                        if (planes != null && planes.length > 0 && planes[0] != null) {
+                        
+                        if (planes != null && planes.length > 0 && planes[0].getBuffer() != null) {
                             ByteBuffer buffer = planes[0].getBuffer();
-                            // int pixelStride = planes[0].getPixelStride(); // Not used currently
-                            // int rowStride = planes[0].getRowStride();     // Not used currently
+                            int pixelStride = planes[0].getPixelStride();
+                            int rowStride = planes[0].getRowStride();
 
-                            if (buffer.hasRemaining()) { // Prevent crash if buffer is unexpectedly empty
-                                byte[] bitmapData = new byte[buffer.remaining()];
-                                buffer.get(bitmapData);
+                            byte[] bitmapData = new byte[buffer.remaining()];
+                            buffer.get(bitmapData);
 
-                                if (frameCallback != null) {
-                                    frameCallback.onFrameAvailable(bitmapData);
-                                }
-                            } else {
-                                Log.w(TAG, "Service: Image buffer has no remaining bytes in onImageAvailable.");
+                            if (frameCallback != null) {
+                                frameCallback.onFrameAvailable(bitmapData);
                             }
+                            // Toast.makeText(ScreenCaptureService.this, "Service: Frame Sent!", Toast.LENGTH_SHORT).show(); // DEBUG TOAST
                         } else {
-                            Log.w(TAG, "Service: Image planes are null or empty in onImageAvailable.");
+                            Log.e(TAG, "ScreenCaptureService: Image planes or buffer are null.");
+                            Toast.makeText(ScreenCaptureService.this, "Service: Image planes/buffer null!", Toast.LENGTH_SHORT).show();
                         }
                     } else {
-                        Log.w(TAG, "Service: Acquired null image in onImageAvailable.");
+                        Log.w(TAG, "ScreenCaptureService: acquireLatestImage returned null.");
+                        Toast.makeText(ScreenCaptureService.this, "Service: Acquired null image!", Toast.LENGTH_SHORT).show();
                     }
+                } catch (IllegalStateException e) {
+                    Log.w(TAG, "ScreenCaptureService: ImageReader acquire error (IllegalState): " + e.getMessage());
+                    Toast.makeText(ScreenCaptureService.this, "Service: ImageReader state error!", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
-                    Log.e(TAG, "Service: Error processing image in onImageAvailable!", e);
+                    Log.e(TAG, "ScreenCaptureService: Error processing image: " + e.getMessage(), e);
+                    Toast.makeText(ScreenCaptureService.this, "Service: Image processing error!", Toast.LENGTH_LONG).show();
+                    // Consider stopping the service here if errors are persistent and critical.
                 } finally {
                     if (image != null) {
-                        image.close();
+                        try {
+                            image.close();
+                            Log.d(TAG, "ScreenCaptureService: Image closed.");
+                        } catch (Exception e) {
+                            Log.e(TAG, "ScreenCaptureService: Error closing image: " + e.getMessage(), e);
+                        }
                     }
                 }
             }
-        }, null); // Handler is null, so it runs on the main looper thread.
+        }, null);
 
-        try {
-            Log.d(TAG, "Service: Attempting to create VirtualDisplay. Dims: " +
-                       screenWidth + "x" + screenHeight + ", Density: " + screenDensity); // Debug Log
-            virtualDisplay = mediaProjection.createVirtualDisplay(
-                "ScreenMirror",
-                screenWidth,
-                screenHeight,
-                screenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                imageReader.getSurface(), // Ensure imageReader.getSurface() is not null here
-                null,
-                null
-            );
-            Log.d(TAG, "Service: VirtualDisplay created successfully."); // Debug Log
+        virtualDisplay = mediaProjection.createVirtualDisplay(
+            "ScreenMirror",
+            screenWidth,
+            screenHeight,
+            screenDensity,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader.getSurface(),
+            null,
+            null
+        );
 
-        } catch (Exception e) { // Catch all exceptions for comprehensive debugging
-            Log.e(TAG, "Service: CRITICAL EXCEPTION creating VirtualDisplay! " +
-                       "Check screen dimensions, density, MediaProjection state, or ImageReader surface.", e);
-            stopSelf();
-            return;
-        }
-
-        Log.d(TAG, "Service: Screen capture fully started and initialized."); // Debug Log - You should see this if everything above succeeds.
+        Log.d(TAG, "ScreenCaptureService: Screen capture started.");
+        Toast.makeText(this, "Service: Screen capture started!", Toast.LENGTH_SHORT).show(); // SEVENTH SERVICE TOAST
     }
 
     private void stopScreenCapture() {
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
-            Log.d(TAG, "Service: VirtualDisplay released.");
         }
 
         if (imageReader != null) {
             imageReader.close();
             imageReader = null;
-            Log.d(TAG, "Service: ImageReader closed.");
         }
 
         if (mediaProjection != null) {
             mediaProjection.stop();
             mediaProjection = null;
-            Log.d(TAG, "Service: MediaProjection stopped.");
         }
 
         stopForeground(true);
-        Log.d(TAG, "Service: Screen capture stopped. stopForeground called.");
+        Log.d(TAG, "ScreenCaptureService: Screen capture stopped.");
     }
 
     public int[] getScreenDimensions() {
