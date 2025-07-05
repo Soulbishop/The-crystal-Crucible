@@ -2,38 +2,60 @@ apply plugin: 'com.android.application'
 
 android {
     namespace 'com.screenmirror.samsung'
-    compileSdkVersion 33
+    compileSdkVersion 34
     
     defaultConfig {
         applicationId "com.screenmirror.samsung"
         minSdkVersion 24
-        targetSdkVersion 33
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
+        
+        // >>> SAMSUNG OPTIMIZATION VECTORS <<<
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
     }
     
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // >>> SAMSUNG HARDWARE OPTIMIZATION <<<
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
+        }
+        debug {
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
     }
     
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    
+    // >>> PACKAGING OPTIONS FOR NANOHTTPD <<<
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsc.so'
     }
 }
 
 dependencies {
-    // AndroidX dependencies
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    // >>> ANDROIDX CORE MATRIX <<<
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.core:core:1.9.0'
-    implementation 'com.google.android.material:material:1.8.0'
-
-    // NanoHTTPD and NanoWSD dependencies
-    // These versions are widely used and compatible with your current setup.
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'com.google.android.material:material:1.11.0'
+    
+    // >>> NANOHTTPD WEBSOCKET MATRIX <<<
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+    
+    // >>> JSON PROCESSING MATRIX <<<
+    implementation 'org.json:json:20231013'
+    
+    // >>> SAMSUNG SPECIFIC OPTIMIZATIONS <<<
+    implementation 'androidx.window:window:1.2.0'
 }
