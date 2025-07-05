@@ -99,21 +99,18 @@ public class TouchInputService extends AccessibilityService implements Streaming
     public void onTouchReceived(float x, float y) {
         Log.d(TAG, "onTouchReceived: x=" + x + ", y=" + y);
         // Simulate a tap at the received coordinates
-        // Cast 0 and 100 to long
         dispatchSinglePointGesture(x, y, x, y, 0L, 100L); // Duration 100ms for a tap
     }
 
     @Override
     public void onLongPressReceived(float x, float y) {
         Log.d(TAG, "onLongPressReceived: x=" + x + ", y=" + y);
-        // Cast 0 and 500 to long
         dispatchSinglePointGesture(x, y, x, y, 0L, 500L); // Long press (hold for 500ms)
     }
 
     @Override
     public void onSwipeReceived(float startX, float startY, float endX, float endY) {
         Log.d(TAG, "onSwipeReceived: startX=" + startX + ", startY=" + startY + ", endX=" + endX + ", endY=" + endY);
-        // Cast 0 and 200 to long
         dispatchSinglePointGesture(startX, startY, endX, endY, 0L, 200L); // Swipe (duration 200ms)
     }
 
