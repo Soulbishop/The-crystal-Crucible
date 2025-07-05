@@ -1,6 +1,7 @@
 /**
- * Device Discovery for Screen Mirror PWA
- * Finds Samsung devices on local network using mDNS/Bonjour
+ * 🧪 Device Discovery - ALCHEMICAL EDITION
+ * 🔴 Simplified discovery for direct IP connection
+ * 🔵 Optimized for iPad Air 2 performance constraints
  */
 
 class DeviceDiscovery {
@@ -11,371 +12,286 @@ class DeviceDiscovery {
             onError: options.onError || (() => {})
         };
         
-        this.isScanning = false;
+        // 🔴 CRIMSON VARIABLES - Discovery State
+        this.isDiscovering = false;
         this.discoveredDevices = new Map();
-        this.scanInterval = null;
-        this.deviceTimeout = 30000; // 30 seconds
-        this.scanFrequency = 5000; // 5 seconds
+        this.discoveryInterval = null;
         
-        // Service type for Samsung screen mirror devices
-        this.serviceType = '_screenmirror._tcp.local.';
-        this.fallbackPorts = [8080, 8081, 8082, 8083, 8084];
+        // 🔵 AZURE VARIABLES - Network Configuration
+        this.commonPorts = [8080, 8081, 8082, 8888, 9090];
+        this.networkTimeout = 3000;
+        this.discoveryFrequency = 10000; // 10 seconds
         
-        console.log('Device discovery initialized');
+        // ⚗️ HERMETIC VARIABLES - iPad Air 2 Optimization
+        this.maxConcurrentChecks = 3; // Limit concurrent requests
+        this.activeChecks = 0;
+        
+        console.log('🧪 Device Discovery initialized - Alchemical scanning ready');
     }
     
     start() {
-        if (this.isScanning) {
-            console.log('Discovery already running');
+        if (this.isDiscovering) {
+            console.log('⚗️ Discovery already active');
             return;
         }
         
-        this.isScanning = true;
-        console.log('Starting device discovery...');
+        console.log('🔴 Starting alchemical device discovery...');
+        this.isDiscovering = true;
         
-        // Try mDNS discovery first
-        this.startMDNSDiscovery();
+        // 🧪 Start immediate discovery
+        this.performDiscovery();
         
-        // Fallback to network scanning
-        setTimeout(() => {
-            if (this.discoveredDevices.size === 0) {
-                this.startNetworkScan();
-            }
-        }, 3000);
-        
-        // Start periodic scanning
-        this.scanInterval = setInterval(() => {
-            this.performScan();
-        }, this.scanFrequency);
-        
-        // Clean up expired devices
-        setInterval(() => {
-            this.cleanupExpiredDevices();
-        }, 10000);
+        // 🔵 Set up periodic discovery
+        this.discoveryInterval = setInterval(() => {
+            this.performDiscovery();
+        }, this.discoveryFrequency);
     }
     
     stop() {
-        if (!this.isScanning) return;
+        console.log('🔴 Stopping alchemical device discovery...');
+        this.isDiscovering = false;
         
-        this.isScanning = false;
-        console.log('Stopping device discovery...');
-        
-        if (this.scanInterval) {
-            clearInterval(this.scanInterval);
-            this.scanInterval = null;
+        if (this.discoveryInterval) {
+            clearInterval(this.discoveryInterval);
+            this.discoveryInterval = null;
         }
         
-        // Clear all discovered devices
+        // 🧪 Clear discovered devices
         this.discoveredDevices.clear();
     }
     
-    startMDNSDiscovery() {
-        // Note: Web browsers don't have direct mDNS access
-        // This is a placeholder for potential future WebRTC mDNS support
-        // or service worker based discovery
+    async performDiscovery() {
+        if (!this.isDiscovering) return;
         
-        console.log('mDNS discovery not available in browser, using fallback methods');
-    }
-    
-    startNetworkScan() {
-        console.log('Starting network scan...');
-        
-        // Get local network information
-        this.getLocalNetworkInfo().then(networkInfo => {
-            if (networkInfo) {
-                this.scanNetworkRange(networkInfo);
-            }
-        }).catch(error => {
-            console.error('Failed to get network info:', error);
-            this.options.onError(error);
-        });
-    }
-    
-    async getLocalNetworkInfo() {
         try {
-            // Use WebRTC to get local IP address
+            // 🔴 Get local network range
+            const networkRange = await this.getLocalNetworkRange();
+            
+            if (networkRange) {
+                console.log('🧪 Scanning network range:', networkRange);
+                await this.scanNetworkRange(networkRange);
+            } else {
+                console.log('🔵 Using common device discovery methods');
+                await this.performCommonDiscovery();
+            }
+            
+        } catch (error) {
+            console.error('🔴 Discovery error:', error);
+            this.options.onError(error);
+        }
+    }
+    
+    async getLocalNetworkRange() {
+        // 🧪 Simplified network detection for web environment
+        // In a real implementation, this would use more sophisticated methods
+        
+        try {
+            // 🔴 Try to detect local IP via WebRTC
+            const localIP = await this.getLocalIPAddress();
+            if (localIP) {
+                const parts = localIP.split('.');
+                if (parts.length === 4) {
+                    const baseIP = `${parts[0]}.${parts[1]}.${parts[2]}`;
+                    return { baseIP, start: 1, end: 254 };
+                }
+            }
+        } catch (error) {
+            console.warn('⚗️ Could not detect local network range:', error);
+        }
+        
+        return null;
+    }
+    
+    async getLocalIPAddress() {
+        return new Promise((resolve) => {
+            // 🔵 Use WebRTC to get local IP
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
             
             pc.createDataChannel('');
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
+            pc.createOffer().then(offer => pc.setLocalDescription(offer));
             
-            return new Promise((resolve) => {
-                pc.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        const candidate = event.candidate.candidate;
-                        const ipMatch = candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-                        
-                        if (ipMatch && !ipMatch[1].startsWith('127.')) {
-                            const localIP = ipMatch[1];
-                            const networkBase = localIP.substring(0, localIP.lastIndexOf('.'));
-                            
-                            pc.close();
-                            resolve({
-                                localIP: localIP,
-                                networkBase: networkBase
-                            });
-                        }
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const candidate = event.candidate.candidate;
+                    const ipMatch = candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                    if (ipMatch) {
+                        pc.close();
+                        resolve(ipMatch[1]);
+                        return;
                     }
-                };
-                
-                // Timeout after 5 seconds
-                setTimeout(() => {
-                    pc.close();
-                    resolve(null);
-                }, 5000);
-            });
-        } catch (error) {
-            console.error('Error getting local network info:', error);
-            return null;
-        }
+                }
+            };
+            
+            // 🧪 Timeout after 5 seconds
+            setTimeout(() => {
+                pc.close();
+                resolve(null);
+            }, 5000);
+        });
     }
     
-    async scanNetworkRange(networkInfo) {
-        const { networkBase } = networkInfo;
+    async scanNetworkRange(range) {
+        const { baseIP, start, end } = range;
         const promises = [];
         
-        // Scan common IP ranges (last octet 1-254)
-        for (let i = 1; i <= 254; i++) {
-            const ip = `${networkBase}.${i}`;
+        // 🔴 Limit concurrent scans for iPad Air 2
+        for (let i = start; i <= end; i += this.maxConcurrentChecks) {
+            const batch = [];
             
-            // Skip our own IP
-            if (ip === networkInfo.localIP) continue;
-            
-            // Test each fallback port
-            for (const port of this.fallbackPorts) {
-                promises.push(this.testDevice(ip, port));
+            for (let j = 0; j < this.maxConcurrentChecks && (i + j) <= end; j++) {
+                const ip = `${baseIP}.${i + j}`;
+                batch.push(this.checkDevice(ip));
             }
-        }
-        
-        // Limit concurrent requests
-        const batchSize = 20;
-        for (let i = 0; i < promises.length; i += batchSize) {
-            const batch = promises.slice(i, i + batchSize);
-            await Promise.allSettled(batch);
             
-            // Small delay between batches
+            // 🧪 Process batch and wait before next
+            const results = await Promise.allSettled(batch);
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && result.value) {
+                    this.handleDeviceFound(result.value);
+                }
+            });
+            
+            // ⚗️ Small delay to prevent overwhelming iPad Air 2
             await new Promise(resolve => setTimeout(resolve, 100));
         }
     }
     
-    async testDevice(ip, port) {
-        try {
-            // Try to connect to the device's discovery endpoint
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
-            
-            const response = await fetch(`http://${ip}:${port}/discovery`, {
-                method: 'GET',
-                signal: controller.signal,
-                mode: 'cors'
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-                const deviceInfo = await response.json();
-                this.handleDeviceFound(ip, port, deviceInfo);
-            }
-        } catch (error) {
-            // Device not found or not responding - this is expected for most IPs
-            // Only log actual errors, not connection failures
-            if (error.name !== 'AbortError' && !error.message.includes('Failed to fetch')) {
-                console.debug(`Device test failed for ${ip}:${port}:`, error.message);
-            }
-        }
-    }
-    
-    handleDeviceFound(ip, port, deviceInfo = {}) {
-        const deviceId = `${ip}:${port}`;
+    async performCommonDiscovery() {
+        // 🔵 Check common local addresses
+        const commonIPs = [
+            '192.168.1.1', '192.168.1.100', '192.168.1.101', '192.168.1.102',
+            '192.168.0.1', '192.168.0.100', '192.168.0.101', '192.168.0.102',
+            '10.0.0.1', '10.0.0.100', '10.0.0.101', '10.0.0.102'
+        ];
         
-        // Create device object
-        const device = {
-            id: deviceId,
-            name: deviceInfo.name || `Samsung Device (${ip})`,
-            ipAddress: ip,
-            port: port,
-            type: deviceInfo.type || 'samsung-galaxy',
-            model: deviceInfo.model || 'Galaxy S22 Ultra',
-            version: deviceInfo.version || '1.0',
-            capabilities: deviceInfo.capabilities || ['screen-mirror', 'touch-input'],
-            lastSeen: Date.now(),
-            ...deviceInfo
-        };
-        
-        // Check if this is a new device
-        const isNewDevice = !this.discoveredDevices.has(deviceId);
-        
-        // Add or update device
-        this.discoveredDevices.set(deviceId, device);
-        
-        if (isNewDevice) {
-            console.log('New device found:', device);
-            this.options.onDeviceFound(device);
-        } else {
-            // Update last seen time
-            this.discoveredDevices.get(deviceId).lastSeen = Date.now();
-        }
-    }
-    
-    performScan() {
-        if (!this.isScanning) return;
-        
-        // Perform a quick scan of known good IPs
-        const knownIPs = Array.from(this.discoveredDevices.values())
-            .map(device => ({ ip: device.ipAddress, port: device.port }));
-        
-        knownIPs.forEach(({ ip, port }) => {
-            this.testDevice(ip, port);
-        });
-        
-        // Occasionally do a broader scan
-        if (Math.random() < 0.1) { // 10% chance
-            this.getLocalNetworkInfo().then(networkInfo => {
-                if (networkInfo) {
-                    // Scan a smaller range for new devices
-                    const { networkBase } = networkInfo;
-                    const promises = [];
-                    
-                    for (let i = 1; i <= 50; i++) {
-                        const ip = `${networkBase}.${i}`;
-                        for (const port of this.fallbackPorts) {
-                            promises.push(this.testDevice(ip, port));
-                        }
-                    }
-                    
-                    Promise.allSettled(promises);
+        for (const ip of commonIPs) {
+            try {
+                const device = await this.checkDevice(ip);
+                if (device) {
+                    this.handleDeviceFound(device);
                 }
-            });
+            } catch (error) {
+                // 🧪 Ignore individual check failures
+            }
+            
+            // ⚗️ Small delay between checks
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
     
-    cleanupExpiredDevices() {
-        const now = Date.now();
-        const expiredDevices = [];
-        
-        for (const [deviceId, device] of this.discoveredDevices) {
-            if (now - device.lastSeen > this.deviceTimeout) {
-                expiredDevices.push(device);
-                this.discoveredDevices.delete(deviceId);
+    async checkDevice(ipAddress) {
+        // 🔴 Check each common port for Samsung device
+        for (const port of this.commonPorts) {
+            try {
+                const device = await this.testConnection(ipAddress, port);
+                if (device) {
+                    return device;
+                }
+            } catch (error) {
+                // 🧪 Continue to next port
             }
         }
         
-        expiredDevices.forEach(device => {
-            console.log('Device lost:', device);
-            this.options.onDeviceLost(device);
+        return null;
+    }
+    
+    async testConnection(ipAddress, port) {
+        return new Promise((resolve) => {
+            const wsUrl = `ws://${ipAddress}:${port}`;
+            const ws = new WebSocket(wsUrl);
+            
+            const timeout = setTimeout(() => {
+                ws.close();
+                resolve(null);
+            }, this.networkTimeout);
+            
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                
+                // 🔵 Send discovery message
+                const discoveryMessage = {
+                    type: 'discovery_request',
+                    client: 'Crystal Crucible iPad',
+                    timestamp: Date.now()
+                };
+                
+                ws.send(JSON.stringify(discoveryMessage));
+                
+                // 🧪 Wait for response
+                const responseTimeout = setTimeout(() => {
+                    ws.close();
+                    resolve(null);
+                }, 2000);
+                
+                ws.onmessage = (event) => {
+                    clearTimeout(responseTimeout);
+                    
+                    try {
+                        const response = JSON.parse(event.data);
+                        if (response.type === 'discovery_response') {
+                            const device = {
+                                id: `${ipAddress}:${port}`,
+                                name: response.device_name || 'Samsung Galaxy S22 Ultra',
+                                ipAddress: ipAddress,
+                                port: port,
+                                capabilities: response.capabilities || [],
+                                lastSeen: Date.now()
+                            };
+                            
+                            ws.close();
+                            resolve(device);
+                        } else {
+                            ws.close();
+                            resolve(null);
+                        }
+                    } catch (error) {
+                        ws.close();
+                        resolve(null);
+                    }
+                };
+            };
+            
+            ws.onerror = () => {
+                clearTimeout(timeout);
+                resolve(null);
+            };
         });
     }
     
-    getDevices() {
-        return Array.from(this.discoveredDevices.values());
-    }
-    
-    getDevice(deviceId) {
-        return this.discoveredDevices.get(deviceId);
+    handleDeviceFound(device) {
+        const existingDevice = this.discoveredDevices.get(device.id);
+        
+        if (!existingDevice) {
+            // 🔴 New device discovered
+            this.discoveredDevices.set(device.id, device);
+            this.options.onDeviceFound(device);
+            console.log('🧪 New Samsung device discovered:', device.name);
+        } else {
+            // 🔵 Update existing device timestamp
+            existingDevice.lastSeen = Date.now();
+        }
     }
     
     getDeviceCount() {
         return this.discoveredDevices.size;
     }
     
-    // Manual device addition
-    addManualDevice(ip, port = 8080, deviceInfo = {}) {
-        const deviceId = `${ip}:${port}`;
-        
-        const device = {
-            id: deviceId,
-            name: deviceInfo.name || `Manual Device (${ip})`,
-            ipAddress: ip,
-            port: port,
-            type: 'manual',
-            model: deviceInfo.model || 'Unknown',
-            version: deviceInfo.version || '1.0',
-            capabilities: ['screen-mirror', 'touch-input'],
-            lastSeen: Date.now(),
-            manual: true,
-            ...deviceInfo
-        };
-        
-        this.discoveredDevices.set(deviceId, device);
-        this.options.onDeviceFound(device);
-        
-        return device;
+    getDevices() {
+        return Array.from(this.discoveredDevices.values());
     }
     
-    removeDevice(deviceId) {
-        const device = this.discoveredDevices.get(deviceId);
-        if (device) {
-            this.discoveredDevices.delete(deviceId);
-            this.options.onDeviceLost(device);
-            return true;
-        }
-        return false;
-    }
-    
-    // Device validation
-    async validateDevice(device) {
-        try {
-            const response = await fetch(`http://${device.ipAddress}:${device.port}/status`, {
-                method: 'GET',
-                timeout: 3000
-            });
-            
-            if (response.ok) {
-                const status = await response.json();
-                return {
-                    valid: true,
-                    status: status
-                };
+    removeStaleDevices() {
+        const now = Date.now();
+        const staleThreshold = 30000; // 30 seconds
+        
+        for (const [id, device] of this.discoveredDevices) {
+            if (now - device.lastSeen > staleThreshold) {
+                this.discoveredDevices.delete(id);
+                this.options.onDeviceLost(device);
+                console.log('⚗️ Samsung device lost:', device.name);
             }
-        } catch (error) {
-            return {
-                valid: false,
-                error: error.message
-            };
         }
-        
-        return { valid: false };
-    }
-    
-    // Network utilities
-    isValidIP(ip) {
-        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-        if (!ipRegex.test(ip)) return false;
-        
-        const parts = ip.split('.');
-        return parts.every(part => {
-            const num = parseInt(part, 10);
-            return num >= 0 && num <= 255;
-        });
-    }
-    
-    isPrivateIP(ip) {
-        const parts = ip.split('.').map(part => parseInt(part, 10));
-        
-        // 10.0.0.0/8
-        if (parts[0] === 10) return true;
-        
-        // 172.16.0.0/12
-        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-        
-        // 192.168.0.0/16
-        if (parts[0] === 192 && parts[1] === 168) return true;
-        
-        return false;
-    }
-    
-    // Debug methods
-    getDiscoveryStats() {
-        return {
-            isScanning: this.isScanning,
-            deviceCount: this.discoveredDevices.size,
-            devices: this.getDevices(),
-            scanFrequency: this.scanFrequency,
-            deviceTimeout: this.deviceTimeout
-        };
     }
 }
-
