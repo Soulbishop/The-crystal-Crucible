@@ -1,351 +1,275 @@
 /**
- * Video Display for Screen Mirror PWA
- * Handles video rendering and scaling for iPad display
+ * 🧪 Video Display - ALCHEMICAL EDITION
+ * 🔴 Optimized for iPad Air 2 memory constraints
+ * 🔵 Enhanced for Samsung Galaxy S22 Ultra video streaming
  */
 
 class VideoDisplay {
     constructor(canvasId, options = {}) {
         this.canvas = document.getElementById(canvasId);
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+        
         this.options = {
             onFrameReceived: options.onFrameReceived || (() => {}),
             onError: options.onError || (() => {})
         };
         
+        // 🔴 CRIMSON VARIABLES - Display State
         this.isActive = false;
-        this.currentFrame = null;
+        this.isPaused = false;
         this.frameCount = 0;
         this.lastFrameTime = 0;
+        
+        // 🔵 AZURE VARIABLES - Performance Monitoring
         this.fps = 0;
-        this.fpsInterval = null;
+        this.frameInterval = null;
+        this.performanceStats = {
+            framesProcessed: 0,
+            framesDropped: 0,
+            averageProcessingTime: 0
+        };
         
-        // Video scaling settings
-        this.scaleMode = 'contain'; // 'contain', 'cover', 'stretch'
-        this.sourceAspectRatio = 16/9; // Default Samsung Galaxy S22 Ultra aspect ratio
-        this.targetAspectRatio = 4/3;  // iPad Air 2 aspect ratio
+        // ⚗️ HERMETIC VARIABLES - iPad Air 2 Memory Management
+        this.frameBuffer = null;
+        this.maxFrameSize = 1920 * 1080; // Limit for iPad Air 2
+        this.compressionLevel = 0.8;
         
-        this.init();
+        this.initializeAlchemicalDisplay();
+        console.log('🧪 Video Display initialized - Alchemical rendering ready');
     }
     
-    init() {
-        this.setupCanvas();
-        this.startFPSMonitoring();
-        console.log('Video display initialized');
-    }
-    
-    setupCanvas() {
-        // Set canvas size to match container
-        this.resize();
-        
-        // Set up canvas properties for smooth rendering
-        this.ctx.imageSmoothingEnabled = true;
-        this.ctx.imageSmoothingQuality = 'high';
-        
-        // Handle resize events
-        window.addEventListener('resize', () => this.resize());
-        window.addEventListener('orientationchange', () => {
-            setTimeout(() => this.resize(), 100);
-        });
-    }
-    
-    resize() {
-        const container = this.canvas.parentElement;
-        const rect = container.getBoundingClientRect();
-        
-        // Set canvas size to match container
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
-        
-        // Update canvas style size
-        this.canvas.style.width = rect.width + 'px';
-        this.canvas.style.height = rect.height + 'px';
-        
-        // Recalculate scaling if we have a current frame
-        if (this.currentFrame) {
-            this.displayFrame(this.currentFrame);
+    initializeAlchemicalDisplay() {
+        if (!this.canvas || !this.ctx) {
+            console.error('🔴 Canvas initialization failed');
+            return;
         }
         
-        console.log('Canvas resized to:', rect.width, 'x', rect.height);
+        // 🧪 Set canvas properties for optimal performance
+        this.canvas.style.imageRendering = 'pixelated';
+        this.canvas.style.imageRendering = '-moz-crisp-edges';
+        this.canvas.style.imageRendering = 'crisp-edges';
+        
+        // 🔵 Initialize frame buffer
+        this.frameBuffer = document.createElement('canvas');
+        this.frameBufferCtx = this.frameBuffer.getContext('2d');
+        
+        // ⚗️ Setup resize observer for responsive display
+        if (window.ResizeObserver) {
+            const resizeObserver = new ResizeObserver(() => {
+                this.handleResize();
+            });
+            resizeObserver.observe(this.canvas.parentElement);
+        }
+        
+        console.log('🔴 Alchemical display matrix initialized');
     }
     
     displayFrame(frameData) {
-        if (!this.isActive) return;
+        if (!this.isActive || this.isPaused) return;
+        
+        const startTime = performance.now();
         
         try {
-            this.currentFrame = frameData;
-            this.frameCount++;
-            
-            // Clear canvas
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            
+            // 🧪 Process frame based on type
             if (frameData.canvas) {
-                this.drawScaledFrame(frameData.canvas, frameData.width, frameData.height);
+                this.displayCanvasFrame(frameData);
+            } else if (frameData.imageData) {
+                this.displayImageDataFrame(frameData);
+            } else if (frameData.blob) {
+                this.displayBlobFrame(frameData);
+            } else {
+                console.warn('⚗️ Unknown frame data type');
+                return;
             }
             
-            // Update frame timing
-            const now = Date.now();
-            this.lastFrameTime = now;
+            // 🔴 Update performance statistics
+            this.updatePerformanceStats(startTime);
+            this.frameCount++;
+            this.lastFrameTime = Date.now();
             
-            // Notify frame received
+            // 🔵 Notify callback
             this.options.onFrameReceived(frameData);
             
         } catch (error) {
-            console.error('Error displaying frame:', error);
+            console.error('🔴 Frame display error:', error);
+            this.performanceStats.framesDropped++;
             this.options.onError(error);
         }
     }
     
-    drawScaledFrame(sourceCanvas, sourceWidth, sourceHeight) {
-        const canvasWidth = this.canvas.width;
-        const canvasHeight = this.canvas.height;
+    displayCanvasFrame(frameData) {
+        const { canvas, width, height } = frameData;
         
-        // Calculate source aspect ratio
-        this.sourceAspectRatio = sourceWidth / sourceHeight;
-        this.targetAspectRatio = canvasWidth / canvasHeight;
-        
-        let drawWidth, drawHeight, drawX, drawY;
-        
-        switch (this.scaleMode) {
-            case 'contain':
-                // Scale to fit within canvas while maintaining aspect ratio
-                if (this.sourceAspectRatio > this.targetAspectRatio) {
-                    // Source is wider, fit to width
-                    drawWidth = canvasWidth;
-                    drawHeight = canvasWidth / this.sourceAspectRatio;
-                    drawX = 0;
-                    drawY = (canvasHeight - drawHeight) / 2;
-                } else {
-                    // Source is taller, fit to height
-                    drawWidth = canvasHeight * this.sourceAspectRatio;
-                    drawHeight = canvasHeight;
-                    drawX = (canvasWidth - drawWidth) / 2;
-                    drawY = 0;
-                }
-                break;
-                
-            case 'cover':
-                // Scale to cover entire canvas while maintaining aspect ratio
-                if (this.sourceAspectRatio > this.targetAspectRatio) {
-                    // Source is wider, fit to height
-                    drawWidth = canvasHeight * this.sourceAspectRatio;
-                    drawHeight = canvasHeight;
-                    drawX = (canvasWidth - drawWidth) / 2;
-                    drawY = 0;
-                } else {
-                    // Source is taller, fit to width
-                    drawWidth = canvasWidth;
-                    drawHeight = canvasWidth / this.sourceAspectRatio;
-                    drawX = 0;
-                    drawY = (canvasHeight - drawHeight) / 2;
-                }
-                break;
-                
-            case 'stretch':
-                // Stretch to fill entire canvas
-                drawWidth = canvasWidth;
-                drawHeight = canvasHeight;
-                drawX = 0;
-                drawY = 0;
-                break;
-                
-            default:
-                drawWidth = canvasWidth;
-                drawHeight = canvasHeight;
-                drawX = 0;
-                drawY = 0;
+        // 🧪 Resize display canvas if needed
+        if (this.canvas.width !== width || this.canvas.height !== height) {
+            this.resizeCanvas(width, height);
         }
         
-        // Draw the scaled frame
-        this.ctx.drawImage(
-            sourceCanvas,
-            0, 0, sourceWidth, sourceHeight,
-            drawX, drawY, drawWidth, drawHeight
-        );
+        // 🔴 Draw frame to display canvas
+        this.ctx.drawImage(canvas, 0, 0, width, height, 0, 0, this.canvas.width, this.canvas.height);
+    }
+    
+    displayImageDataFrame(frameData) {
+        const { imageData, width, height } = frameData;
         
-        // Store scaling information for coordinate mapping
-        this.scalingInfo = {
-            drawX, drawY, drawWidth, drawHeight,
-            scaleX: drawWidth / sourceWidth,
-            scaleY: drawHeight / sourceHeight,
-            sourceWidth, sourceHeight,
-            canvasWidth, canvasHeight
-        };
+        // 🔵 Create temporary canvas for ImageData
+        if (!this.frameBuffer || this.frameBuffer.width !== width || this.frameBuffer.height !== height) {
+            this.frameBuffer.width = width;
+            this.frameBuffer.height = height;
+        }
+        
+        // ⚗️ Put image data and draw to display
+        this.frameBufferCtx.putImageData(imageData, 0, 0);
+        this.ctx.drawImage(this.frameBuffer, 0, 0, this.canvas.width, this.canvas.height);
     }
     
-    getScalingInfo() {
-        return this.scalingInfo;
+    async displayBlobFrame(frameData) {
+        const { blob } = frameData;
+        
+        // 🧪 Create image from blob
+        const img = new Image();
+        
+        return new Promise((resolve, reject) => {
+            img.onload = () => {
+                try {
+                    // 🔴 Draw image to canvas
+                    this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+                    URL.revokeObjectURL(img.src); // Clean up memory
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            
+            img.onerror = () => {
+                URL.revokeObjectURL(img.src);
+                reject(new Error('Failed to load image from blob'));
+            };
+            
+            img.src = URL.createObjectURL(blob);
+        });
     }
     
-    setScaleMode(mode) {
-        if (['contain', 'cover', 'stretch'].includes(mode)) {
-            this.scaleMode = mode;
-            if (this.currentFrame) {
-                this.displayFrame(this.currentFrame);
-            }
+    resizeCanvas(width, height) {
+        // 🔵 Calculate optimal display size for iPad Air 2
+        const maxWidth = Math.min(width, this.maxFrameSize / height);
+        const maxHeight = Math.min(height, this.maxFrameSize / width);
+        
+        // ⚗️ Maintain aspect ratio
+        const aspectRatio = width / height;
+        const containerWidth = this.canvas.parentElement.clientWidth;
+        const containerHeight = this.canvas.parentElement.clientHeight;
+        
+        let displayWidth, displayHeight;
+        
+        if (containerWidth / containerHeight > aspectRatio) {
+            displayHeight = Math.min(containerHeight, maxHeight);
+            displayWidth = displayHeight * aspectRatio;
+        } else {
+            displayWidth = Math.min(containerWidth, maxWidth);
+            displayHeight = displayWidth / aspectRatio;
+        }
+        
+        // 🧪 Apply new dimensions
+        this.canvas.width = Math.floor(displayWidth);
+        this.canvas.height = Math.floor(displayHeight);
+        
+        console.log(`🔴 Canvas resized: ${this.canvas.width}x${this.canvas.height}`);
+    }
+    
+    handleResize() {
+        // 🔵 Recalculate canvas size on container resize
+        if (this.lastFrameTime > 0) {
+            // Use last known frame dimensions
+            this.resizeCanvas(this.canvas.width, this.canvas.height);
+        }
+    }
+    
+    updatePerformanceStats(startTime) {
+        const processingTime = performance.now() - startTime;
+        
+        // 🧪 Update rolling average
+        this.performanceStats.framesProcessed++;
+        const alpha = 0.1; // Smoothing factor
+        this.performanceStats.averageProcessingTime = 
+            (this.performanceStats.averageProcessingTime * (1 - alpha)) + 
+            (processingTime * alpha);
+        
+        // 🔴 Calculate FPS every second
+        const now = Date.now();
+        if (!this.lastFpsUpdate) {
+            this.lastFpsUpdate = now;
+            this.framesSinceLastUpdate = 0;
+        }
+        
+        this.framesSinceLastUpdate++;
+        
+        if (now - this.lastFpsUpdate >= 1000) {
+            this.fps = this.framesSinceLastUpdate;
+            this.framesSinceLastUpdate = 0;
+            this.lastFpsUpdate = now;
+            
+            console.log(`🔵 Performance: ${this.fps} FPS, ${this.performanceStats.averageProcessingTime.toFixed(2)}ms avg processing`);
         }
     }
     
     start() {
         this.isActive = true;
-        console.log('Video display started');
+        this.isPaused = false;
+        console.log('🧪 Alchemical video display activated');
     }
     
     pause() {
-        this.isActive = false;
-        console.log('Video display paused');
+        this.isPaused = true;
+        console.log('⚗️ Video display paused');
     }
     
     resume() {
-        this.isActive = true;
-        console.log('Video display resumed');
+        this.isPaused = false;
+        console.log('🔴 Video display resumed');
     }
     
     stop() {
         this.isActive = false;
-        this.currentFrame = null;
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        console.log('Video display stopped');
-    }
-    
-    startFPSMonitoring() {
-        let lastTime = Date.now();
-        let frameCounter = 0;
+        this.isPaused = false;
         
-        this.fpsInterval = setInterval(() => {
-            const now = Date.now();
-            const deltaTime = now - lastTime;
-            
-            if (deltaTime >= 1000) {
-                this.fps = Math.round((frameCounter * 1000) / deltaTime);
-                frameCounter = 0;
-                lastTime = now;
-                
-                // Update FPS display if element exists
-                const fpsElement = document.getElementById('fpsValue');
-                if (fpsElement) {
-                    fpsElement.textContent = this.fps;
-                }
-            }
-            
-            frameCounter = this.frameCount;
-        }, 100);
-    }
-    
-    stopFPSMonitoring() {
-        if (this.fpsInterval) {
-            clearInterval(this.fpsInterval);
-            this.fpsInterval = null;
-        }
-    }
-    
-    getFPS() {
-        return this.fps;
-    }
-    
-    getFrameCount() {
-        return this.frameCount;
-    }
-    
-    getLastFrameTime() {
-        return this.lastFrameTime;
-    }
-    
-    // Screenshot functionality
-    takeScreenshot() {
-        if (!this.currentFrame) {
-            throw new Error('No frame available for screenshot');
+        // 🔵 Clear canvas
+        if (this.ctx) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         }
         
-        // Create a new canvas with the current frame
-        const screenshotCanvas = document.createElement('canvas');
-        const screenshotCtx = screenshotCanvas.getContext('2d');
-        
-        screenshotCanvas.width = this.canvas.width;
-        screenshotCanvas.height = this.canvas.height;
-        
-        // Copy current canvas content
-        screenshotCtx.drawImage(this.canvas, 0, 0);
-        
-        // Convert to blob
-        return new Promise((resolve) => {
-            screenshotCanvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/png');
-        });
+        console.log('🧪 Alchemical video display deactivated');
     }
     
-    // Performance monitoring
+    resize() {
+        this.handleResize();
+    }
+    
     getPerformanceStats() {
         return {
+            ...this.performanceStats,
             fps: this.fps,
-            frameCount: this.frameCount,
-            lastFrameTime: this.lastFrameTime,
             isActive: this.isActive,
-            canvasSize: {
-                width: this.canvas.width,
-                height: this.canvas.height
-            },
-            scalingInfo: this.scalingInfo
+            isPaused: this.isPaused,
+            frameCount: this.frameCount
         };
     }
     
-    // Debug methods
-    drawDebugInfo() {
-        if (!this.isActive) return;
-        
-        const ctx = this.ctx;
-        const info = this.getPerformanceStats();
-        
-        // Save current context
-        ctx.save();
-        
-        // Set debug text style
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 10, 200, 100);
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'left';
-        
-        // Draw debug information
-        ctx.fillText(`FPS: ${info.fps}`, 15, 25);
-        ctx.fillText(`Frames: ${info.frameCount}`, 15, 40);
-        ctx.fillText(`Canvas: ${info.canvasSize.width}x${info.canvasSize.height}`, 15, 55);
-        
-        if (info.scalingInfo) {
-            ctx.fillText(`Scale: ${info.scalingInfo.scaleX.toFixed(2)}x${info.scalingInfo.scaleY.toFixed(2)}`, 15, 70);
-            ctx.fillText(`Source: ${info.scalingInfo.sourceWidth}x${info.scalingInfo.sourceHeight}`, 15, 85);
-        }
-        
-        // Restore context
-        ctx.restore();
-    }
-    
-    enableDebugMode() {
-        this.debugMode = true;
-        this.debugInterval = setInterval(() => {
-            if (this.currentFrame) {
-                this.drawDebugInfo();
-            }
-        }, 100);
-    }
-    
-    disableDebugMode() {
-        this.debugMode = false;
-        if (this.debugInterval) {
-            clearInterval(this.debugInterval);
-            this.debugInterval = null;
-        }
-    }
-    
+    // 🧪 Memory cleanup for iPad Air 2
     cleanup() {
         this.stop();
-        this.stopFPSMonitoring();
-        this.disableDebugMode();
         
-        // Remove event listeners
-        window.removeEventListener('resize', this.resize);
-        window.removeEventListener('orientationchange', this.resize);
+        if (this.frameBuffer) {
+            this.frameBuffer.width = 1;
+            this.frameBuffer.height = 1;
+        }
+        
+        this.performanceStats = {
+            framesProcessed: 0,
+            framesDropped: 0,
+            averageProcessingTime: 0
+        };
+        
+        console.log('⚗️ Video display memory cleaned');
     }
 }
-
