@@ -2,23 +2,23 @@ package com.screenmirror.samsung.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.content.Context; // Added for isAccessibilityServiceEnabled
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Region;
 import android.os.Build;
-import android.provider.Settings; // Added for isAccessibilityServiceEnabled
-import android.text.TextUtils; // Added for isAccessibilityServiceEnabled
+import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Display;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.WindowManager;
 // Corrected import for GestureDescription
 import android.accessibilityservice.GestureDescription;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
+import android.view.accessibility.AccessibilityEvent;
 import android.widget.Toast;
 
 public class TouchInputService extends AccessibilityService implements StreamingService.TouchCallback {
@@ -99,46 +99,31 @@ public class TouchInputService extends AccessibilityService implements Streaming
     public void onTouchReceived(float x, float y) {
         Log.d(TAG, "onTouchReceived: x=" + x + ", y=" + y);
         // Simulate a tap at the received coordinates
-        dispatchSinglePointGesture(x, y, 0, 100); // Duration 100ms for a tap
+        // Cast 0 and 100 to long
+        dispatchSinglePointGesture(x, y, x, y, 0L, 100L); // Duration 100ms for a tap
     }
 
     @Override
     public void onLongPressReceived(float x, float y) {
         Log.d(TAG, "onLongPressReceived: x=" + x + ", y=" + y);
-        dispatchSinglePointGesture(x, y, 0, 500); // Long press (hold for 500ms)
+        // Cast 0 and 500 to long
+        dispatchSinglePointGesture(x, y, x, y, 0L, 500L); // Long press (hold for 500ms)
     }
 
     @Override
     public void onSwipeReceived(float startX, float startY, float endX, float endY) {
         Log.d(TAG, "onSwipeReceived: startX=" + startX + ", startY=" + startY + ", endX=" + endX + ", endY=" + endY);
-        dispatchSinglePointGesture(startX, startY, endX, endY, 0, 200); // Swipe (duration 200ms)
+        // Cast 0 and 200 to long
+        dispatchSinglePointGesture(startX, startY, endX, endY, 0L, 200L); // Swipe (duration 200ms)
     }
 
     @Override
     public void onPinchReceived(float scale) {
-        // Pinch gesture - for simplicity, we'll map this to a zoom in/out action
-        // This is a complex gesture for AccessibilityService to simulate accurately,
-        // but we can try a simple two-finger touch/move
         Log.d(TAG, "onPinchReceived: scale=" + scale);
-
-        // For now, focusing on basic touch.
-        // Implementing pinch accurately requires managing two pointers with GestureDescription.
-        // Example (conceptual):
-        // Path path1 = new Path(); path1.moveTo(x1_start, y1_start); path1.lineTo(x1_end, y1_end);
-        // Path path2 = new Path(); path2.moveTo(x2_start, y2_start); path2.lineTo(x2_end, y2_end);
-        // gestureBuilder.addStroke(new GestureDescription.StrokeDescription(path1, 0, duration));
-        // gestureBuilder.addStroke(new GestureDescription.StrokeDescription(path2, 0, duration));
-        // dispatchGesture(gestureBuilder.build(), null, null);
     }
 
     // Helper method to dispatch single-point gestures (tap, long press, swipe)
     private void dispatchSinglePointGesture(float startX, float startY, float endX, float endY, long startTime, long duration) {
-        // Scale coordinates to device screen dimensions if necessary
-        // Assuming incoming coordinates are normalized (0-1) or absolute pixels matching capture
-        // If they are absolute pixels from capture, they should map directly.
-        // For normalized: x = x * screenWidth, y = y * screenHeight
-        // For now, assume coordinates directly map.
-
         Path gesturePath = new Path();
         gesturePath.moveTo(startX, startY);
         if (startX != endX || startY != endY) { // If it's a swipe
@@ -179,7 +164,6 @@ public class TouchInputService extends AccessibilityService implements Streaming
         this.screenWidth = width;
         this.screenHeight = height;
         Log.d(TAG, "Updated TouchInputService screen dimensions to: " + width + "x" + height);
-        // Recalculate scaling factors if needed based on host (iPad) vs target (Samsung)
     }
 
     /**
