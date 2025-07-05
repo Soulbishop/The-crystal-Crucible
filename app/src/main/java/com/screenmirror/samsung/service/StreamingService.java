@@ -13,10 +13,8 @@ import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
 import fi.iki.elonen.NanoWSD.WebSocket; // Explicitly import WebSocket from NanoWSD
 
-// Corrected imports for WebSocketFrame and CloseCode for NanoHTTPD 2.3.x
-// These are the standard paths within the nanohttpd-websocket artifact.
-import fi.iki.elonen.websocket.CloseCode;
-import fi.iki.elonen.websocket.WebSocketFrame;
+// REMOVED explicit imports for fi.iki.elonen.websocket.CloseCode and WebSocketFrame
+// We will access them via the WebSocket class itself.
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -257,8 +255,8 @@ public class StreamingService extends Service {
             if (currentWebSocket != null && currentWebSocket.isOpen()) {
                 Log.d(TAG, "Closing previous WebSocket connection.");
                 try {
-                    // Use the correct CloseCode enum
-                    currentWebSocket.close(CloseCode.NORMAL, "New connection established", false); 
+                    // Access CloseCode through WebSocket
+                    currentWebSocket.close(WebSocket.CloseCode.NORMAL, "New connection established", false); 
                 } catch (IOException e) {
                     Log.e(TAG, "Error closing previous WebSocket: " + e.getMessage());
                 }
@@ -313,7 +311,7 @@ public class StreamingService extends Service {
         }
 
         @Override
-        protected void onClose(CloseCode code, String reason, boolean initiatedByRemote) {
+        protected void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
             Log.d(TAG, "WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
             if (serviceContext.listener != null) {
                 serviceContext.listener.onClientDisconnected();
@@ -329,6 +327,7 @@ public class StreamingService extends Service {
 
         @Override
         protected void onPong(WebSocketFrame pong) {
+            String msg = pong.getTextPayload(); // Typically pong doesn't have text payload, but for consistency
             Log.d(TAG, "Received Pong");
         }
 
