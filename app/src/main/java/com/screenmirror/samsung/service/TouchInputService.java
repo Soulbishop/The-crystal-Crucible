@@ -2,19 +2,23 @@ package com.screenmirror.samsung.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.Context; // Added for isAccessibilityServiceEnabled
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Region;
 import android.os.Build;
+import android.provider.Settings; // Added for isAccessibilityServiceEnabled
+import android.text.TextUtils; // Added for isAccessibilityServiceEnabled
 import android.util.Log;
 import android.view.Display;
-import android.view.GestureDescription;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.WindowManager;
+// Corrected import for GestureDescription
+import android.accessibilityservice.GestureDescription;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
-import android.view.accessibility.AccessibilityEvent;
 import android.widget.Toast;
 
 public class TouchInputService extends AccessibilityService implements StreamingService.TouchCallback {
@@ -48,7 +52,8 @@ public class TouchInputService extends AccessibilityService implements Streaming
         // Configure AccessibilityServiceInfo for dispatchGesture
         AccessibilityServiceInfo info = getServiceInfo();
         info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS; // For key events if needed
-        info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE; // For touch events
+        // FLAG_REQUEST_TOUCH_EXPLORATION_MODE is for talkback like features, not typically for dispatchGesture
+        // info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
         setServiceInfo(info);
 
         // Register this service as a TouchCallback with StreamingService
@@ -94,19 +99,19 @@ public class TouchInputService extends AccessibilityService implements Streaming
     public void onTouchReceived(float x, float y) {
         Log.d(TAG, "onTouchReceived: x=" + x + ", y=" + y);
         // Simulate a tap at the received coordinates
-        dispatchGesture(x, y, x, y, 1, 1); // Simple tap (down and up immediately)
+        dispatchSinglePointGesture(x, y, 0, 100); // Duration 100ms for a tap
     }
 
     @Override
     public void onLongPressReceived(float x, float y) {
         Log.d(TAG, "onLongPressReceived: x=" + x + ", y=" + y);
-        dispatchGesture(x, y, x, y, 0, 500); // Long press (hold for 500ms)
+        dispatchSinglePointGesture(x, y, 0, 500); // Long press (hold for 500ms)
     }
 
     @Override
     public void onSwipeReceived(float startX, float startY, float endX, float endY) {
         Log.d(TAG, "onSwipeReceived: startX=" + startX + ", startY=" + startY + ", endX=" + endX + ", endY=" + endY);
-        dispatchGesture(startX, startY, endX, endY, 0, 200); // Swipe (duration 200ms)
+        dispatchSinglePointGesture(startX, startY, endX, endY, 0, 200); // Swipe (duration 200ms)
     }
 
     @Override
@@ -116,42 +121,45 @@ public class TouchInputService extends AccessibilityService implements Streaming
         // but we can try a simple two-finger touch/move
         Log.d(TAG, "onPinchReceived: scale=" + scale);
 
-        // For simplicity, we'll just log this for now.
-        // A true pinch gesture simulation requires complex multi-pointer GestureDescription.
-        // If zoom is needed, we might consider sending specific key events (e.g. for browser zoom)
-        // or a simpler single-touch gesture that implies zoom for some apps.
         // For now, focusing on basic touch.
+        // Implementing pinch accurately requires managing two pointers with GestureDescription.
+        // Example (conceptual):
+        // Path path1 = new Path(); path1.moveTo(x1_start, y1_start); path1.lineTo(x1_end, y1_end);
+        // Path path2 = new Path(); path2.moveTo(x2_start, y2_start); path2.lineTo(x2_end, y2_end);
+        // gestureBuilder.addStroke(new GestureDescription.StrokeDescription(path1, 0, duration));
+        // gestureBuilder.addStroke(new GestureDescription.StrokeDescription(path2, 0, duration));
+        // dispatchGesture(gestureBuilder.build(), null, null);
     }
 
-    // Helper method to dispatch gestures
-    private void dispatchGesture(float startX, float startY, float endX, float endY, long downTime, long duration) {
+    // Helper method to dispatch single-point gestures (tap, long press, swipe)
+    private void dispatchSinglePointGesture(float startX, float startY, float endX, float endY, long startTime, long duration) {
         // Scale coordinates to device screen dimensions if necessary
         // Assuming incoming coordinates are normalized (0-1) or absolute pixels matching capture
         // If they are absolute pixels from capture, they should map directly.
         // For normalized: x = x * screenWidth, y = y * screenHeight
         // For now, assume coordinates directly map.
 
-        Path swipePath = new Path();
-        swipePath.moveTo(startX, startY);
-        swipePath.lineTo(endX, endY);
+        Path gesturePath = new Path();
+        gesturePath.moveTo(startX, startY);
+        if (startX != endX || startY != endY) { // If it's a swipe
+            gesturePath.lineTo(endX, endY);
+        }
 
         GestureDescription.Builder gestureBuilder = new GestureDescription.Builder();
-
-        // Start stroke (finger down)
-        gestureBuilder.addStroke(new GestureDescription.StrokeDescription(swipePath, downTime, duration));
+        gestureBuilder.addStroke(new GestureDescription.StrokeDescription(gesturePath, startTime, duration));
 
         // Execute the gesture
         boolean dispatched = dispatchGesture(gestureBuilder.build(), new GestureResultCallback() {
             @Override
             public void onCompleted(GestureDescription gestureDescription) {
                 super.onCompleted(gestureDescription);
-                Log.d(TAG, "Gesture completed: " + gestureDescription.toString());
+                Log.d(TAG, "Gesture completed.");
             }
 
             @Override
             public void onCancelled(GestureDescription gestureDescription) {
                 super.onCancelled(gestureDescription);
-                Log.e(TAG, "Gesture cancelled: " + gestureDescription.toString());
+                Log.e(TAG, "Gesture cancelled.");
             }
         }, null);
 
@@ -159,6 +167,7 @@ public class TouchInputService extends AccessibilityService implements Streaming
             Log.e(TAG, "Failed to dispatch gesture.");
         }
     }
+
 
     /**
      * Updates the internal screen dimensions based on the latest capture dimensions
@@ -171,5 +180,40 @@ public class TouchInputService extends AccessibilityService implements Streaming
         this.screenHeight = height;
         Log.d(TAG, "Updated TouchInputService screen dimensions to: " + width + "x" + height);
         // Recalculate scaling factors if needed based on host (iPad) vs target (Samsung)
+    }
+
+    /**
+     * Helper method to check if the Accessibility Service is enabled.
+     * This is commonly used in MainActivity to guide the user.
+     * @param context The application context.
+     * @return true if the service is enabled, false otherwise.
+     */
+    public static boolean isAccessibilityServiceEnabled(Context context) {
+        String service = context.getPackageName() + "/" + TouchInputService.class.getCanonicalName();
+        int accessibilityEnabled = 0;
+        try {
+            accessibilityEnabled = Settings.Secure.getInt(context.getApplicationContext().getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED);
+        } catch (Settings.SettingNotFoundException e) {
+            Log.e(TAG, "Error finding setting, default accessibility to not enabled: " + e.getMessage());
+        }
+        TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(':');
+        if (accessibilityEnabled == 1) {
+            String settingValue = Settings.Secure.getString(context.getApplicationContext().getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (settingValue != null) {
+                splitter.setString(settingValue);
+                while (splitter.hasNext()) {
+                    String accessibilityService = splitter.next();
+                    if (accessibilityService.equalsIgnoreCase(service)) {
+                        Log.v(TAG, "Accessibility service " + service + " is enabled");
+                        return true;
+                    }
+                }
+            }
+        } else {
+            Log.v(TAG, "Accessibility is disabled");
+        }
+        return false;
     }
 }
