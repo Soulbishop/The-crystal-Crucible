@@ -9,10 +9,14 @@ import android.text.format.Formatter;
 import android.util.Log;
 
 import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elonen.NanoHTTPD.IHTTPSession; // Correct import for IHTTPSession
+import fi.iki.elonen.NanoHTTPD.IHTTPSession; 
 import fi.iki.elonen.NanoWSD;
 import fi.iki.elonen.NanoWSD.WebSocket; // Explicitly import WebSocket from NanoWSD
-import fi.iki.elonen.WebSocketFrame; // This import might still be problematic depending on NanoHTTPD version. Let's keep it for now and see.
+
+// CORRECTED IMPORTS FOR WEBSOCKETFRAME AND CLOSECODE
+import org.nanohttpd.protocols.websockets.CloseCode;
+import org.nanohttpd.protocols.websockets.WebSocketFrame;
+
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -253,9 +257,8 @@ public class StreamingService extends Service {
             if (currentWebSocket != null && currentWebSocket.isOpen()) {
                 Log.d(TAG, "Closing previous WebSocket connection.");
                 try {
-                    // Use the WebSocketFrame class from the NanoHTTPD WebSocket library if it's there
-                    // Or, in some versions, CloseCode might be directly accessible from WebSocket
-                    currentWebSocket.close(WebSocketFrame.CloseCode.NORMAL, "New connection established", false); 
+                    // Use the correct CloseCode enum
+                    currentWebSocket.close(CloseCode.NORMAL, "New connection established", false); 
                 } catch (IOException e) {
                     Log.e(TAG, "Error closing previous WebSocket: " + e.getMessage());
                 }
@@ -310,7 +313,7 @@ public class StreamingService extends Service {
         }
 
         @Override
-        protected void onClose(WebSocketFrame.CloseCode code, String reason, boolean initiatedByRemote) {
+        protected void onClose(CloseCode code, String reason, boolean initiatedByRemote) {
             Log.d(TAG, "WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
             if (serviceContext.listener != null) {
                 serviceContext.listener.onClientDisconnected();
