@@ -1,6 +1,7 @@
 /**
- * WebRTC Client for Screen Mirror PWA
- * Handles connection to Samsung device and media streaming
+ * 🧪 WebRTC Client for Screen Mirror PWA - ALCHEMICAL EDITION
+ * 🔴 Handles connection to Samsung Galaxy S22 Ultra via WebSocket alchemy
+ * 🔵 Optimized for iPad Air 2 memory constraints
  */
 
 class WebRTCClient {
@@ -12,351 +13,373 @@ class WebRTCClient {
             onLatencyUpdate: options.onLatencyUpdate || (() => {})
         };
         
-        this.peerConnection = null;
-        this.dataChannel = null;
+        // 🔴 CRIMSON VARIABLES - Core Connection State
         this.websocket = null;
         this.isConnected = false;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 2000;
+        
+        // 🔵 AZURE VARIABLES - Performance Monitoring
         this.latencyInterval = null;
         this.lastPingTime = 0;
+        this.connectionStartTime = 0;
         
-        this.videoQualitySettings = {
-            high: { width: 1920, height: 1080, framerate: 60, bitrate: 8000000 },
-            medium: { width: 1280, height: 720, framerate: 30, bitrate: 4000000 },
-            low: { width: 854, height: 480, framerate: 20, bitrate: 2000000 }
-        };
+        // ⚗️ HERMETIC VARIABLES - iPad Air 2 Optimization
+        this.messageQueue = [];
+        this.isProcessingQueue = false;
+        this.maxQueueSize = 50; // Memory constraint for iPad Air 2
         
-        this.currentQuality = 'medium';
+        console.log('🧪 WebRTC Client initialized - Alchemical protocol ready');
     }
     
     async connect(ipAddress, port = 8080) {
         try {
-            console.log(`Connecting to ${ipAddress}:${port}...`);
+            console.log(`🔴 Initiating transmutation to ${ipAddress}:${port}...`);
             this.options.onConnectionStateChange('connecting');
+            this.connectionStartTime = Date.now();
             
-            // Create WebSocket connection for signaling
-            await this.createWebSocketConnection(ipAddress, port);
-            
-            // Create peer connection
-            await this.createPeerConnection();
-            
-            // Create data channel for touch input
-            this.createDataChannel();
-            
-            // Start connection process
-            await this.startConnection();
+            // 🧪 Create direct WebSocket connection (no /signaling endpoint)
+            await this.createAlchemicalWebSocket(ipAddress, port);
             
         } catch (error) {
-            console.error('Connection failed:', error);
+            console.error('🔴 Transmutation failed:', error);
             this.options.onConnectionStateChange('failed');
             this.options.onError(error);
             throw error;
         }
     }
     
-    async createWebSocketConnection(ipAddress, port) {
+    async createAlchemicalWebSocket(ipAddress, port) {
         return new Promise((resolve, reject) => {
-            const wsUrl = `ws://${ipAddress}:${port}/signaling`;
+            // 🔴 DIRECT WEBSOCKET CONNECTION - No signaling endpoint
+            const wsUrl = `ws://${ipAddress}:${port}`;
+            console.log(`🧪 Establishing alchemical link: ${wsUrl}`);
+            
             this.websocket = new WebSocket(wsUrl);
             
             this.websocket.onopen = () => {
-                console.log('WebSocket connected');
+                console.log('🔵 Alchemical WebSocket link established');
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+                this.options.onConnectionStateChange('connected');
+                this.startLatencyMonitoring();
+                this.sendConnectionHandshake();
                 resolve();
             };
             
             this.websocket.onmessage = (event) => {
-                this.handleSignalingMessage(JSON.parse(event.data));
+                this.handleAlchemicalMessage(event.data);
             };
             
             this.websocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                reject(new Error('WebSocket connection failed'));
+                console.error('🔴 Alchemical link error:', error);
+                reject(new Error('WebSocket transmutation failed'));
             };
             
-            this.websocket.onclose = () => {
-                console.log('WebSocket disconnected');
-                if (this.isConnected) {
-                    this.handleDisconnection();
+            this.websocket.onclose = (event) => {
+                console.log('⚗️ Alchemical link severed:', event.code, event.reason);
+                this.handleDisconnection();
+                
+                // 🔵 Auto-reconnection alchemy for unstable connections
+                if (this.isConnected && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.attemptReconnection(ipAddress, port);
                 }
             };
             
-            // Timeout after 10 seconds
+            // 🧪 Timeout protection for iPad Air 2
             setTimeout(() => {
                 if (this.websocket.readyState !== WebSocket.OPEN) {
                     this.websocket.close();
-                    reject(new Error('WebSocket connection timeout'));
+                    reject(new Error('Alchemical link timeout - Samsung device not responding'));
                 }
             }, 10000);
         });
     }
     
-    async createPeerConnection() {
-        const configuration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ],
-            iceCandidatePoolSize: 10
+    sendConnectionHandshake() {
+        // 🔴 Send initial handshake to Samsung device
+        const handshake = {
+            type: 'connection_request',
+            device: 'iPad Air 2',
+            client: 'Crystal Crucible Web Client',
+            capabilities: ['touch_input', 'video_display'],
+            screen_resolution: {
+                width: window.screen.width,
+                height: window.screen.height
+            },
+            timestamp: Date.now()
         };
         
-        this.peerConnection = new RTCPeerConnection(configuration);
-        
-        // Handle ICE candidates
-        this.peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                this.sendSignalingMessage({
-                    type: 'ice-candidate',
-                    candidate: event.candidate
-                });
-            }
-        };
-        
-        // Handle connection state changes
-        this.peerConnection.onconnectionstatechange = () => {
-            console.log('Peer connection state:', this.peerConnection.connectionState);
-            
-            switch (this.peerConnection.connectionState) {
-                case 'connected':
-                    this.isConnected = true;
-                    this.options.onConnectionStateChange('connected');
-                    this.startLatencyMonitoring();
-                    break;
-                case 'disconnected':
-                case 'failed':
-                case 'closed':
-                    this.handleDisconnection();
-                    break;
-            }
-        };
-        
-        // Handle incoming video stream
-        this.peerConnection.ontrack = (event) => {
-            console.log('Received video track');
-            const [stream] = event.streams;
-            this.handleVideoStream(stream);
-        };
-        
-        // Handle data channel from remote peer
-        this.peerConnection.ondatachannel = (event) => {
-            const channel = event.channel;
-            console.log('Received data channel:', channel.label);
-            
-            if (channel.label === 'touch-response') {
-                this.setupTouchResponseChannel(channel);
-            }
-        };
+        this.sendAlchemicalMessage(handshake);
+        console.log('🧪 Connection handshake transmitted');
     }
     
-    createDataChannel() {
-        this.dataChannel = this.peerConnection.createDataChannel('touch-input', {
-            ordered: false,
-            maxRetransmits: 0
-        });
-        
-        this.dataChannel.onopen = () => {
-            console.log('Touch input data channel opened');
-        };
-        
-        this.dataChannel.onclose = () => {
-            console.log('Touch input data channel closed');
-        };
-        
-        this.dataChannel.onerror = (error) => {
-            console.error('Data channel error:', error);
-        };
-    }
-    
-    setupTouchResponseChannel(channel) {
-        channel.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'pong') {
-                    this.handlePongMessage(data);
-                }
-            } catch (error) {
-                console.error('Error parsing touch response:', error);
-            }
-        };
-    }
-    
-    async startConnection() {
-        // Create offer
-        const offer = await this.peerConnection.createOffer({
-            offerToReceiveVideo: true,
-            offerToReceiveAudio: false
-        });
-        
-        await this.peerConnection.setLocalDescription(offer);
-        
-        // Send offer to remote peer
-        this.sendSignalingMessage({
-            type: 'offer',
-            offer: offer,
-            quality: this.currentQuality
-        });
-    }
-    
-    async handleSignalingMessage(message) {
+    handleAlchemicalMessage(data) {
         try {
-            switch (message.type) {
-                case 'answer':
-                    await this.peerConnection.setRemoteDescription(message.answer);
-                    break;
-                    
-                case 'ice-candidate':
-                    await this.peerConnection.addIceCandidate(message.candidate);
-                    break;
-                    
-                case 'error':
-                    throw new Error(message.error);
-                    
-                default:
-                    console.warn('Unknown signaling message type:', message.type);
+            const message = JSON.parse(data);
+            console.log('🔵 Received alchemical message:', message.type);
+            
+            // 🧪 Add to processing queue for iPad Air 2 memory management
+            if (this.messageQueue.length >= this.maxQueueSize) {
+                this.messageQueue.shift(); // Remove oldest message
+                console.warn('⚗️ Message queue overflow - discarding old messages');
             }
+            
+            this.messageQueue.push(message);
+            this.processMessageQueue();
+            
         } catch (error) {
-            console.error('Error handling signaling message:', error);
-            this.options.onError(error);
+            console.error('🔴 Failed to parse alchemical message:', error);
         }
     }
     
-    sendSignalingMessage(message) {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(JSON.stringify(message));
+    async processMessageQueue() {
+        if (this.isProcessingQueue) return;
+        
+        this.isProcessingQueue = true;
+        
+        while (this.messageQueue.length > 0) {
+            const message = this.messageQueue.shift();
+            await this.processMessage(message);
+            
+            // 🔵 Yield control to prevent blocking iPad Air 2
+            await new Promise(resolve => setTimeout(resolve, 1));
+        }
+        
+        this.isProcessingQueue = false;
+    }
+    
+    async processMessage(message) {
+        switch (message.type) {
+            case 'connection_established':
+                console.log('🧪 Samsung device confirmed connection');
+                this.handleConnectionEstablished(message);
+                break;
+                
+            case 'video_frame':
+                // 🔴 Handle video frame data
+                this.handleVideoFrame(message);
+                break;
+                
+            case 'resize':
+                console.log('🔵 Screen resolution update:', message.width, 'x', message.height);
+                this.handleScreenResize(message);
+                break;
+                
+            case 'visibility':
+                console.log('⚗️ Visibility change:', message.visible);
+                this.handleVisibilityChange(message);
+                break;
+                
+            case 'status':
+                console.log('🧪 Status update:', message.status);
+                this.handleStatusUpdate(message);
+                break;
+                
+            case 'pong':
+                this.handlePongMessage(message);
+                break;
+                
+            case 'error':
+                console.error('🔴 Samsung device error:', message.error);
+                this.options.onError(new Error(message.error));
+                break;
+                
+            default:
+                console.warn('⚗️ Unknown message type:', message.type);
+        }
+    }
+    
+    handleConnectionEstablished(message) {
+        // 🔵 Update coordinate mapping with Samsung device resolution
+        if (message.screen_resolution) {
+            const event = new CustomEvent('samsungResolutionUpdate', {
+                detail: message.screen_resolution
+            });
+            window.dispatchEvent(event);
+        }
+        
+        // 🧪 Connection fully established
+        console.log('🔴 Alchemical transmutation complete - Ready for screen mirroring');
+    }
+    
+    handleVideoFrame(message) {
+        // 🔵 For now, we'll use WebRTC for actual video streaming
+        // This handles video metadata and control messages
+        if (message.metadata) {
+            this.options.onVideoFrame({
+                metadata: message.metadata,
+                timestamp: message.timestamp
+            });
+        }
+    }
+    
+    handleScreenResize(message) {
+        // 🧪 Notify coordinate mapper of Samsung screen changes
+        const event = new CustomEvent('samsungResolutionUpdate', {
+            detail: {
+                width: message.width,
+                height: message.height
+            }
+        });
+        window.dispatchEvent(event);
+    }
+    
+    handleVisibilityChange(message) {
+        // ⚗️ Handle Samsung app visibility changes
+        if (!message.visible) {
+            console.log('🔴 Samsung app hidden - pausing touch input');
         } else {
-            console.error('Cannot send signaling message: WebSocket not connected');
+            console.log('🔵 Samsung app visible - resuming touch input');
         }
     }
     
-    handleVideoStream(stream) {
-        console.log('Setting up video stream');
-        const videoTrack = stream.getVideoTracks()[0];
-        
-        if (videoTrack) {
-            // Create video element for processing
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.muted = true;
-            video.playsInline = true;
-            
-            video.onloadedmetadata = () => {
-                console.log('Video metadata loaded:', {
-                    width: video.videoWidth,
-                    height: video.videoHeight
-                });
-                
-                // Start frame processing
-                this.startFrameProcessing(video);
-            };
+    handleStatusUpdate(message) {
+        // 🧪 Handle various status updates from Samsung device
+        switch (message.status) {
+            case 'transmutation_started':
+                console.log('🔴 Samsung transmutation activated');
+                break;
+            case 'transmutation_stopped':
+                console.log('🔵 Samsung transmutation halted');
+                break;
         }
-    }
-    
-    startFrameProcessing(video) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        const processFrame = () => {
-            if (video.readyState >= 2) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0);
-                
-                // Send frame to video display
-                this.options.onVideoFrame({
-                    canvas: canvas,
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                    timestamp: Date.now()
-                });
-            }
-            
-            if (this.isConnected) {
-                requestAnimationFrame(processFrame);
-            }
-        };
-        
-        processFrame();
     }
     
     sendTouchData(touchData) {
-        if (this.dataChannel && this.dataChannel.readyState === 'open') {
-            try {
-                const message = JSON.stringify({
-                    type: 'touch',
-                    ...touchData,
-                    timestamp: Date.now()
-                });
-                
-                this.dataChannel.send(message);
-            } catch (error) {
-                console.error('Error sending touch data:', error);
+        if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+            console.warn('⚗️ Cannot send touch data - alchemical link not established');
+            return;
+        }
+        
+        try {
+            // 🔴 Enhanced touch message for Samsung processing
+            const touchMessage = {
+                type: 'touch',
+                action: touchData.action,
+                x: touchData.x,
+                y: touchData.y,
+                pressure: touchData.pressure || 1.0,
+                timestamp: Date.now(),
+                device_info: {
+                    screen_width: window.screen.width,
+                    screen_height: window.screen.height,
+                    pixel_ratio: window.devicePixelRatio || 1
+                }
+            };
+            
+            // 🧪 Add gesture-specific data
+            if (touchData.gesture) {
+                touchMessage.gesture = touchData.gesture;
             }
+            
+            this.sendAlchemicalMessage(touchMessage);
+            
+        } catch (error) {
+            console.error('🔴 Failed to transmit touch data:', error);
+        }
+    }
+    
+    sendAlchemicalMessage(message) {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            try {
+                const jsonMessage = JSON.stringify(message);
+                this.websocket.send(jsonMessage);
+            } catch (error) {
+                console.error('🔴 Failed to send alchemical message:', error);
+            }
+        } else {
+            console.warn('⚗️ Cannot send message - WebSocket not connected');
         }
     }
     
     startLatencyMonitoring() {
+        // 🔵 Start ping monitoring for connection quality
         this.latencyInterval = setInterval(() => {
             this.sendPing();
-        }, 1000);
+        }, 2000); // Reduced frequency for iPad Air 2
     }
     
     sendPing() {
-        if (this.dataChannel && this.dataChannel.readyState === 'open') {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
             this.lastPingTime = Date.now();
-            const message = JSON.stringify({
+            const pingMessage = {
                 type: 'ping',
                 timestamp: this.lastPingTime
-            });
-            this.dataChannel.send(message);
+            };
+            this.sendAlchemicalMessage(pingMessage);
         }
     }
     
-    handlePongMessage(data) {
-        const latency = Date.now() - data.timestamp;
+    handlePongMessage(message) {
+        const latency = Date.now() - message.timestamp;
         this.options.onLatencyUpdate(latency);
     }
     
-    updateVideoQuality(quality) {
-        this.currentQuality = quality;
+    attemptReconnection(ipAddress, port) {
+        this.reconnectAttempts++;
+        console.log(`🧪 Attempting alchemical reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
         
-        if (this.isConnected) {
-            // Send quality change request
-            this.sendSignalingMessage({
-                type: 'quality-change',
-                quality: quality
+        setTimeout(() => {
+            this.connect(ipAddress, port).catch(error => {
+                console.error('🔴 Reconnection failed:', error);
+                
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    console.error('⚗️ Maximum reconnection attempts reached');
+                    this.options.onConnectionStateChange('failed');
+                    this.options.onError(new Error('Connection lost - maximum reconnection attempts reached'));
+                }
             });
-        }
+        }, this.reconnectDelay * this.reconnectAttempts);
+    }
+    
+    updateVideoQuality(quality) {
+        // 🔵 Send quality change request to Samsung device
+        const qualityMessage = {
+            type: 'quality_change',
+            quality: quality,
+            timestamp: Date.now()
+        };
+        
+        this.sendAlchemicalMessage(qualityMessage);
+        console.log('🧪 Video quality change requested:', quality);
     }
     
     async disconnect() {
-        console.log('Disconnecting...');
+        console.log('🔴 Initiating disconnection ritual...');
         
         this.isConnected = false;
+        this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
         
-        // Stop latency monitoring
+        // 🧪 Stop latency monitoring
         if (this.latencyInterval) {
             clearInterval(this.latencyInterval);
             this.latencyInterval = null;
         }
         
-        // Close data channel
-        if (this.dataChannel) {
-            this.dataChannel.close();
-            this.dataChannel = null;
+        // 🔵 Send disconnection message
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            const disconnectMessage = {
+                type: 'disconnect',
+                reason: 'user_initiated',
+                timestamp: Date.now()
+            };
+            this.sendAlchemicalMessage(disconnectMessage);
         }
         
-        // Close peer connection
-        if (this.peerConnection) {
-            this.peerConnection.close();
-            this.peerConnection = null;
-        }
-        
-        // Close WebSocket
+        // ⚗️ Close WebSocket connection
         if (this.websocket) {
-            this.websocket.close();
+            this.websocket.close(1000, 'Normal closure');
             this.websocket = null;
         }
         
+        // 🧪 Clear message queue for memory cleanup
+        this.messageQueue = [];
+        this.isProcessingQueue = false;
+        
         this.options.onConnectionStateChange('disconnected');
+        console.log('🔴 Alchemical disconnection complete');
     }
     
     handleDisconnection() {
@@ -364,33 +387,24 @@ class WebRTCClient {
             this.isConnected = false;
             this.options.onConnectionStateChange('disconnected');
             
-            // Stop latency monitoring
+            // 🔵 Stop latency monitoring
             if (this.latencyInterval) {
                 clearInterval(this.latencyInterval);
                 this.latencyInterval = null;
             }
+            
+            console.log('⚗️ Alchemical link severed');
         }
     }
     
     getConnectionStats() {
-        if (!this.peerConnection) return null;
-        
-        return this.peerConnection.getStats().then(stats => {
-            const result = {};
-            stats.forEach(report => {
-                if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
-                    result.video = {
-                        bytesReceived: report.bytesReceived,
-                        packetsReceived: report.packetsReceived,
-                        packetsLost: report.packetsLost,
-                        framesDecoded: report.framesDecoded,
-                        frameWidth: report.frameWidth,
-                        frameHeight: report.frameHeight
-                    };
-                }
-            });
-            return result;
-        });
+        // 🧪 Return connection statistics for debugging
+        return {
+            isConnected: this.isConnected,
+            reconnectAttempts: this.reconnectAttempts,
+            messageQueueLength: this.messageQueue.length,
+            connectionDuration: this.isConnected ? Date.now() - this.connectionStartTime : 0,
+            websocketState: this.websocket ? this.websocket.readyState : 'null'
+        };
     }
 }
-
