@@ -9,14 +9,14 @@ import android.text.format.Formatter;
 import android.util.Log;
 
 import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elonen.NanoHTTPD.IHTTPSession; 
+import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
 import fi.iki.elonen.NanoWSD.WebSocket; // Explicitly import WebSocket from NanoWSD
 
-// CORRECTED IMPORTS FOR WEBSOCKETFRAME AND CLOSECODE
-import org.nanohttpd.protocols.websockets.CloseCode;
-import org.nanohttpd.protocols.websockets.WebSocketFrame;
-
+// Corrected imports for WebSocketFrame and CloseCode for NanoHTTPD 2.3.x
+// These are the standard paths within the nanohttpd-websocket artifact.
+import fi.iki.elonen.websocket.CloseCode;
+import fi.iki.elonen.websocket.WebSocketFrame;
 
 import org.json.JSONException;
 import org.json.JSONObject;
