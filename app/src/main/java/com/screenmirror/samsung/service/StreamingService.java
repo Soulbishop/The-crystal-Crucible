@@ -8,11 +8,11 @@ import android.os.IBinder;
 import android.text.format.Formatter;
 import android.util.Log;
 
-// Corrected NanoHTTPD imports
 import fi.iki.elonen.NanoHTTPD;
+import fi.iki.elonen.NanoHTTPD.IHTTPSession; // Correct import for IHTTPSession
 import fi.iki.elonen.NanoWSD;
 import fi.iki.elonen.NanoWSD.WebSocket; // Explicitly import WebSocket from NanoWSD
-import fi.iki.elonen.WebSocketFrame; // This should be correct
+import fi.iki.elonen.WebSocketFrame; // This import might still be problematic depending on NanoHTTPD version. Let's keep it for now and see.
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-// For IHTTPSession
-import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 
 public class StreamingService extends Service {
 
@@ -114,7 +111,6 @@ public class StreamingService extends Service {
 
     private void stopWebServer() {
         if (webServer != null) {
-            // NanoWSD's stop() method is public, so this should be fine
             webServer.stop();
             webServer = null;
             Log.d(TAG, "Signaling server stopped.");
@@ -216,28 +212,17 @@ public class StreamingService extends Service {
                     if (listener != null) listener.onIceCandidateReceived(candidate);
                     Log.d(TAG, "Received ICE Candidate");
                     break;
-                case "touch": // You would add more cases here for touch events (e.g., "longpress", "swipe", "pinch")
-                    // Example of handling touch (you'll need to parse x, y, etc., from the JSON)
-                    // if (touchCallback != null) {
-                    //     float x = (float) json.getDouble("x");
-                    //     float y = (float) json.getDouble("y");
-                    //     touchCallback.onTouchReceived(x, y);
-                    //     Log.d(TAG, "Received Touch: x=" + x + ", y=" + y);
-                    // }
-                    break; // IMPORTANT: Add break for each case!
-                // Add more cases here for other signaling types like "longpress", "swipe", "pinch" etc.
-                // based on what your client sends and what you define in TouchCallback interface.
-
+                case "touch":
+                    break; 
                 default:
                     Log.w(TAG, "Unknown signaling message type: " + type);
                     break;
             }
-        } catch (JSONException e) { // Catch block for the try statement
+        } catch (JSONException e) {
             Log.e(TAG, "Error parsing signaling message JSON: " + e.getMessage(), e);
         }
     }
 
-    // You might want to get the local IP address for display
     public String getLocalIpAddress(Context context) {
         WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (wifiManager != null) {
@@ -251,7 +236,6 @@ public class StreamingService extends Service {
     // Inner class for the WebSocket server
     private static class ScreenMirrorWebServer extends NanoWSD {
         private StreamingService serviceContext;
-        // Changed to SignalingWebSocket to avoid incompatible type error
         private SignalingWebSocket currentWebSocket; 
 
         public ScreenMirrorWebServer(int port, StreamingService serviceContext) {
@@ -259,50 +243,41 @@ public class StreamingService extends Service {
             this.serviceContext = serviceContext;
         }
 
-        // Return SignalingWebSocket instead of generic WebSocket
         public SignalingWebSocket getCurrentWebSocket() { 
             return currentWebSocket;
         }
 
         @Override
-        // Return SignalingWebSocket as per the type of currentWebSocket
         protected WebSocket openWebSocket(IHTTPSession handshake) { 
             Log.d(TAG, "WebSocket opened from " + handshake.getRemoteIpAddress());
-            // Close any existing WebSocket to ensure only one client is connected at a time
             if (currentWebSocket != null && currentWebSocket.isOpen()) {
                 Log.d(TAG, "Closing previous WebSocket connection.");
                 try {
-                    // Use NanoHTTPD's WebSocketFrame.CloseCode
+                    // Use the WebSocketFrame class from the NanoHTTPD WebSocket library if it's there
+                    // Or, in some versions, CloseCode might be directly accessible from WebSocket
                     currentWebSocket.close(WebSocketFrame.CloseCode.NORMAL, "New connection established", false); 
                 } catch (IOException e) {
                     Log.e(TAG, "Error closing previous WebSocket: " + e.getMessage());
                 }
             }
-            // Set the new WebSocket as the current one
             this.currentWebSocket = new SignalingWebSocket(handshake, serviceContext);
 
-            // Notify service listener about new client
             if (serviceContext.listener != null) {
                 serviceContext.listener.onClientConnected(handshake.getRemoteIpAddress());
             }
 
-            // If there are pending SDP or ICE candidates, send them to the newly connected client
             serviceContext.executor.execute(() -> {
                 try {
-                    // Send pending SDP first
                     String pendingSdp = serviceContext.getPendingSdp();
                     if (pendingSdp != null) {
                         JSONObject json = new JSONObject();
-                        // Determine if it's an offer or answer based on your application's logic
-                        // For simplicity, assume it's an offer if stored, or you might need another field
-                        json.put("type", "offer"); // Assuming the stored SDP is an offer
+                        json.put("type", "offer"); 
                         json.put("sdp", pendingSdp);
                         currentWebSocket.send(json.toString());
-                        serviceContext.clearPendingSdp(); // Clear after sending
+                        serviceContext.clearPendingSdp(); 
                         Log.d(TAG, "Sent pending SDP to new client.");
                     }
 
-                    // Send all pending ICE candidates
                     List<String> candidatesToSend = new ArrayList<>(serviceContext.getPendingIceCandidates());
                     for (String candidate : candidatesToSend) {
                         JSONObject json = new JSONObject();
@@ -311,7 +286,7 @@ public class StreamingService extends Service {
                         currentWebSocket.send(json.toString());
                         Log.d(TAG, "Sent pending ICE Candidate to new client: " + candidate);
                     }
-                    serviceContext.clearPendingIceCandidates(); // Clear after sending
+                    serviceContext.clearPendingIceCandidates(); 
                 } catch (IOException | JSONException e) {
                     Log.e(TAG, "Error sending pending messages to new client: " + e.getMessage(), e);
                 }
