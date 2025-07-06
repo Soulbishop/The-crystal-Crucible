@@ -8,13 +8,19 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+// No need for JSONException or JSONObject if input is already parsed
+// import org.json.JSONException;
+// import org.json.JSONObject;
 
 public class TouchInputService extends AccessibilityService implements StreamingService.TouchCallback {
 
     private static final String TAG = "TouchInputService";
     private Handler mainHandler;
+
+    // State variables to track the current touch position for "move" events
+    private float lastTouchX = -1;
+    private float lastTouchY = -1;
+    private boolean isTouching = false; // To know if a "down" event has occurred
 
     @Override
     public void onCreate() {
@@ -44,6 +50,10 @@ public class TouchInputService extends AccessibilityService implements Streaming
     @Override
     public void onInterrupt() {
         Log.d(TAG, "TouchInputService interrupted.");
+        // Reset touch state if interrupted unexpectedly
+        isTouching = false;
+        lastTouchX = -1;
+        lastTouchY = -1;
     }
 
     @Override
@@ -55,49 +65,29 @@ public class TouchInputService extends AccessibilityService implements Streaming
             streamingService.setTouchCallback(null);
             Log.d(TAG, "TouchInputService unregistered from StreamingService.");
         }
+        // Ensure state is reset on destroy
+        isTouching = false;
+        lastTouchX = -1;
+        lastTouchY = -1;
     }
 
     @Override
     public void onTouchEvent(float x, float y, String action) {
         Log.d(TAG, "Received touch event via callback: x=" + x + ", y=" + y + ", action=" + action);
 
+        // Post to main handler to ensure UI operations are on the main thread
         mainHandler.post(() -> {
             Path path = new Path();
-            path.moveTo(x, y);
-
             GestureDescription.Builder builder = new GestureDescription.Builder();
-            // GestureDescription.Builder does not have getStrokeCount().
-            // We just add the stroke if the action is "down", "move", or "up" for basic events.
-            // For complex gestures (multi-finger, swipes), more advanced logic to build strokes is needed.
-            // For now, we'll ensure at least one stroke is added if any action is triggered.
-            if ("down".equals(action) || "move".equals(action) || "up".equals(action)) {
-                 builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 1));
-            }
+            GestureDescription.StrokeDescription stroke = null;
 
+            long startTime = 0; // When the stroke starts
+            long duration = 1;  // Duration of the stroke in milliseconds. Default to 1ms for quick actions.
 
-            // We check getStrokeCount() implicitly by checking if a stroke was added
-            // (or if builder.build() would succeed without error)
-            // If no stroke was added, dispatchGesture will throw an error or do nothing.
-            // A more robust check might be `if (!builder.getStrokes().isEmpty())` but getStrokes is not public.
-            // Just checking if builder.build() can be called:
-            try {
-                GestureDescription gesture = builder.build(); // Will throw if no strokes
-                dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
-                    @Override // Corrected: This is the correct way to override
-                    public void onGestureCompleted(GestureDescription gestureDescription) {
-                        super.onGestureCompleted(gestureDescription); // Corrected: This super call is now correct
-                        Log.d(TAG, "Gesture completed for action: " + action);
-                    }
-
-                    @Override // Corrected: This is the correct way to override
-                    public void onGestureCancelled(GestureDescription gestureDescription) {
-                        super.onGestureCancelled(gestureDescription); // Corrected: This super call is now correct
-                        Log.w(TAG, "Gesture cancelled for action: " + action);
-                    }
-                }, null);
-            } catch (IllegalArgumentException e) {
-                Log.e(TAG, "Error dispatching gesture: No strokes added or invalid gesture. " + e.getMessage());
-            }
-        });
-    }
-}
+            switch (action) {
+                case "down":
+                    path.moveTo(x, y);
+                    stroke = new GestureDescription.StrokeDescription(path, startTime, duration);
+                    isTouching = true;
+                    lastTouchX = x;
+                    lastTouch
