@@ -26,7 +26,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.screenmirror.samsung.MainActivity;
 import com.screenmirror.samsung.R;
-import com.screenmirror.samsung.util.ImageUtils; // This import should now be resolved
+import com.screenmirror.samsung.util.ImageUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -38,8 +38,11 @@ import java.nio.ByteBuffer;
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.WebSocket; // Correct import for WebSocket (from NanoHTTPD or java-websocket)
-import fi.iki.elonen.WebSocketFrame; // Correct import for WebSocketFrame
+// Corrected WebSocket imports from org.java_websocket library
+import org.java_websocket.WebSocket;
+import org.java_websocket.framing.Framedata; // For onPing/onPong parameters
+// Note: WebSocketFrame is typically not directly imported for onMessage parameters in org.java_websocket.WebSocket
+// onMessage typically takes String for text or ByteBuffer for binary.
 
 public class StreamingService extends Service {
 
@@ -86,7 +89,7 @@ public class StreamingService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Screen Mirroring Active")
                 .setContentText("Streaming your screen to the iPad.")
-                .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this resource exists
+                .setSmallIcon(R.drawable.ic_launcher_foreground) // This resource must exist at res/drawable/ic_launcher_foreground.xml
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
@@ -194,7 +197,6 @@ public class StreamingService extends Service {
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
 
-            // Using ImageUtils now
             Bitmap bitmap = ImageUtils.imageToBitmap(image);
             if (bitmap == null) {
                 Log.e(TAG, "Failed to convert Image to Bitmap.");
@@ -227,7 +229,7 @@ public class StreamingService extends Service {
         }
 
         @Override
-        protected void onOpen() {
+        public void onOpen() {
             Log.d(TAG, "WebSocket opened. Client connected.");
             currentClientWebSocket = this;
             try {
@@ -249,50 +251,47 @@ public class StreamingService extends Service {
             }
         }
 
-        // Corrected onMessage signature and payload access
         @Override
-        public void onMessage(WebSocketFrame message) { // Changed protected to public
-            // WebSocketFrame.getTextPayload() and getBinaryPayload() should work with NanoWSD's WebSocketFrame
-            if (message.isText()) { // isText() should be available
-                String textMessage = message.getTextPayload();
-                Log.d(TAG, "Received message: " + textMessage);
-                try {
-                    JSONObject json = new JSONObject(textMessage);
-                    String type = json.optString("type");
-                    if ("touchEvent".equals(type)) {
-                        if (touchCallback != null) {
-                            float x = (float) json.optDouble("x");
-                            float y = (float) json.optDouble("y");
-                            String action = json.optString("action");
-                            touchCallback.onTouchEvent(x, y, action);
-                        } else {
-                            Log.w(TAG, "TouchCallback not set. Touch event not processed.");
-                        }
+        public void onMessage(String message) { // Corrected: Takes String for text messages
+            Log.d(TAG, "Received message: " + message);
+            try {
+                JSONObject json = new JSONObject(message);
+                String type = json.optString("type");
+                if ("touchEvent".equals(type)) {
+                    if (touchCallback != null) {
+                        float x = (float) json.optDouble("x");
+                        float y = (float) json.optDouble("y");
+                        String action = json.optString("action");
+                        touchCallback.onTouchEvent(x, y, action);
+                    } else {
+                        Log.w(TAG, "TouchCallback not set. Touch event not processed.");
                     }
-                } catch (JSONException e) {
-                    Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.isBinary()) { // isBinary() should be available
-                Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
             }
         }
 
-        // Corrected onPong signature
         @Override
-        public void onPong(WebSocketFrame pongFrame) { // Changed protected to public and parameter name
-            Log.d(TAG, "Pong received.");
+        public void onMessage(ByteBuffer message) { // Corrected: Takes ByteBuffer for binary messages
+            Log.d(TAG, "Received binary message of length: " + message.remaining());
+            // Process binary data here if needed
         }
 
-        // Corrected onPing signature
         @Override
-        public void onPing(WebSocketFrame pingFrame) { // Changed protected to public and parameter name
-            Log.d(TAG, "Ping received.");
+        public void onPong(WebSocket conn, Framedata f) { // Corrected onPong signature
+            Log.d(TAG, "Pong received from: " + conn.getRemoteSocketAddress());
         }
 
-        // Corrected method name from onError to onException as required by WebSocket interface
         @Override
-        public void onException(IOException e) { // Changed protected to public and onError to onException
-            Log.e(TAG, "WebSocket error: " + e.getMessage(), e);
+        public void onPing(WebSocket conn, Framedata f) { // Corrected onPing signature
+            Log.d(TAG, "Ping received from: " + conn.getRemoteSocketAddress());
+            conn.sendPong(f); // Respond to ping
+        }
+
+        @Override
+        public void onError(WebSocket conn, Exception ex) { // Corrected method name to onError
+            Log.e(TAG, "WebSocket error: " + ex.getMessage(), ex);
         }
     }
 
