@@ -38,11 +38,8 @@ import java.nio.ByteBuffer;
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
-// Corrected WebSocket imports from org.java_websocket library
 import org.java_websocket.WebSocket;
-import org.java_websocket.framing.Framedata; // For onPing/onPong parameters
-// Note: WebSocketFrame is typically not directly imported for onMessage parameters in org.java_websocket.WebSocket
-// onMessage typically takes String for text or ByteBuffer for binary.
+import org.java_websocket.framing.Framedata;
 
 public class StreamingService extends Service {
 
@@ -89,7 +86,7 @@ public class StreamingService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Screen Mirroring Active")
                 .setContentText("Streaming your screen to the iPad.")
-                .setSmallIcon(R.drawable.ic_launcher_foreground) // This resource must exist at res/drawable/ic_launcher_foreground.xml
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
@@ -252,7 +249,7 @@ public class StreamingService extends Service {
         }
 
         @Override
-        public void onMessage(String message) { // Corrected: Takes String for text messages
+        public void onMessage(String message) {
             Log.d(TAG, "Received message: " + message);
             try {
                 JSONObject json = new JSONObject(message);
@@ -273,24 +270,24 @@ public class StreamingService extends Service {
         }
 
         @Override
-        public void onMessage(ByteBuffer message) { // Corrected: Takes ByteBuffer for binary messages
+        public void onMessage(ByteBuffer message) {
             Log.d(TAG, "Received binary message of length: " + message.remaining());
             // Process binary data here if needed
         }
 
         @Override
-        public void onPong(WebSocket conn, Framedata f) { // Corrected onPong signature
+        public void onPong(WebSocket conn, Framedata f) {
             Log.d(TAG, "Pong received from: " + conn.getRemoteSocketAddress());
         }
 
         @Override
-        public void onPing(WebSocket conn, Framedata f) { // Corrected onPing signature
+        public void onPing(WebSocket conn, Framedata f) {
             Log.d(TAG, "Ping received from: " + conn.getRemoteSocketAddress());
-            conn.sendPong(f); // Respond to ping
+            conn.sendPong(f);
         }
 
         @Override
-        public void onError(WebSocket conn, Exception ex) { // Corrected method name to onError
+        public void onError(WebSocket conn, Exception ex) {
             Log.e(TAG, "WebSocket error: " + ex.getMessage(), ex);
         }
     }
