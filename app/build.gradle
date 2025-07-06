@@ -1,14 +1,14 @@
-plugins {
-    id 'com.android.application'
-}
+// app/build.gradle (Module: app)
+
+// ... (Your existing plugins and android block) ...
 
 android {
     namespace 'com.screenmirror.samsung'
-    compileSdk 34
+    compileSdk 34 // Ensure you're using a recent SDK version
 
     defaultConfig {
         applicationId "com.screenmirror.samsung"
-        minSdk 24
+        minSdk 26 // MediaProjection requires API 21, but 26+ is common for modern apps
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -29,21 +29,26 @@ android {
 }
 
 dependencies {
-
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.cardview:cardview:1.0.0' // Make sure this is included if you use CardView
+
+    // For NanoHTTPD/NanoWSD (your WebSocket server)
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+
+    // For org.java_websocket (the client library used within your service for client-side WebSocket,
+    // though you are using NanoWSD for the server. Let's include this anyway as your error refers to it).
+    // Note: It's slightly confusing that you import org.java_websocket but use NanoWSD.
+    // However, the errors explicitly point to missing org.java_websocket.
+    // If you are exclusively using NanoWSD for the server and plan to implement client-side only with this,
+    // then org.java_websocket might not be needed. But given the errors, let's add it.
+    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+
+
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-
-    // Additional dependencies for Crystal Crucible
-    implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.core:core:1.9.0'
-    implementation 'com.google.android.material:material:1.8.0'
-
-    // NanoHTTPD and NanoWSD dependencies
-    // These versions are widely used and compatible with your current setup.
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
-    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
 }
+
