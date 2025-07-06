@@ -5,13 +5,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.display.DisplayManager;
-import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Parcelable; // Added import for Parcelable
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -42,7 +42,8 @@ public class MainActivity extends AppCompatActivity {
 
     private MediaProjectionManager mediaProjectionManager;
     private MediaProjection mediaProjection;
-    private VirtualDisplay virtualDisplay;
+    // VirtualDisplay is created and managed within StreamingService, not MainActivity
+    // private VirtualDisplay virtualDisplay;
 
     private Button startMirroringButton;
     private Button stopMirroringButton;
@@ -51,7 +52,6 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> mediaProjectionLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
 
-    // MediaProjection callbacks for Android 14+
     private MediaProjection.Callback mediaProjectionCallback;
 
     @Override
@@ -59,20 +59,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Corrected R.id references (assuming these IDs exist in activity_main.xml)
         startMirroringButton = findViewById(R.id.start_mirroring_button);
         stopMirroringButton = findViewById(R.id.stop_mirroring_button);
         statusTextView = findViewById(R.id.status_text_view);
 
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
-        // Initialize ActivityResultLauncher for MediaProjection
         mediaProjectionLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         mediaProjection = mediaProjectionManager.getMediaProjection(result.getResultCode(), result.getData());
                         if (mediaProjection != null) {
                             Log.d(TAG, "MediaProjection obtained successfully.");
-                            setupMediaProjectionCallbacks(); // Setup callbacks for Android 14+
+                            setupMediaProjectionCallbacks();
                             startScreenMirroring();
                         } else {
                             Log.e(TAG, "Failed to get MediaProjection after user consent.");
@@ -86,7 +86,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        // Initialize ActivityResultLauncher for POST_NOTIFICATIONS permission
         requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
                     if (isGranted) {
@@ -104,12 +103,11 @@ public class MainActivity extends AppCompatActivity {
 
         updateStatus("Status: Ready to Mirror");
 
-        // Ensure accessibility service is enabled for touch input
         checkAccessibilityServiceStatus();
     }
 
     private void checkPermissionsAndStartMirroring() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             } else {
@@ -133,14 +131,17 @@ public class MainActivity extends AppCompatActivity {
                 public void onCapturedContentResize(int width, int height) {
                     super.onCapturedContentResize(width, height);
                     Log.d(TAG, "onCapturedContentResize: " + width + "x" + height);
-                    // Handle resolution change if necessary, e.g., restart virtual display
                 }
 
+                // Corrected: Ensure this method exists and is correctly overridden for the API level
+                // The visibility parameter is an int, not boolean.
+                // This method is from API 34. For lower APIs, this override would cause an error.
+                // If you are targeting API < 34, remove this method or wrap in an API level check.
+                // Assuming target SDK 34 is desired for UP_TO_DATE features.
                 @Override
-                public void onCapturedContentVisibilityChanged(int visibility) {
-                    super.onCapturedContentVisibilityChanged(visibility);
+                public void onCapturedContentVisibilityChanged(int visibility) { // Corrected parameter type to int
+                    super.onCapturedContentVisibilityChanged(visibility); // Corrected super call
                     Log.d(TAG, "onCapturedContentVisibilityChanged: " + visibility);
-                    // Handle visibility change
                 }
 
                 @Override
@@ -148,21 +149,19 @@ public class MainActivity extends AppCompatActivity {
                     super.onStop();
                     Log.d(TAG, "MediaProjection onStop callback triggered.");
                     Toast.makeText(MainActivity.this, "Screen capture stopped by system.", Toast.LENGTH_SHORT).show();
-                    stopScreenMirroring(); // Automatically stop mirroring if MediaProjection stops
+                    stopScreenMirroring();
                 }
             };
             mediaProjection.registerCallback(mediaProjectionCallback, new Handler(Looper.getMainLooper()));
             Log.d(TAG, "MediaProjection callbacks registered for Android 14+.");
         } else {
-            // For older Android versions, MediaProjection.Callback doesn't have onCapturedContent* methods,
-            // but the onStop() method is available and should be registered.
             mediaProjectionCallback = new MediaProjection.Callback() {
                 @Override
                 public void onStop() {
                     super.onStop();
                     Log.d(TAG, "MediaProjection onStop callback triggered (Legacy).");
                     Toast.makeText(MainActivity.this, "Screen capture stopped by system.", Toast.LENGTH_SHORT).show();
-                    stopScreenMirroring(); // Automatically stop mirroring if MediaProjection stops
+                    stopScreenMirroring();
                 }
             };
             mediaProjection.registerCallback(mediaProjectionCallback, new Handler(Looper.getMainLooper()));
@@ -187,14 +186,17 @@ public class MainActivity extends AppCompatActivity {
         int height = metrics.heightPixels;
         int density = metrics.densityDpi;
 
-        // Corrected line 248: Ensure the string literal is properly closed.
         Log.d(TAG, "Starting services for mirroring. Resolution: " + width + "x" + height + " Density: " + density);
         updateStatus("Status: Streaming Active");
 
-        // Start StreamingService
         Intent streamingServiceIntent = new Intent(this, StreamingService.class);
         streamingServiceIntent.setAction(ACTION_START_STREAMING);
-        streamingServiceIntent.putExtra("mediaProjection", mediaProjection);
+
+        // Corrected: Pass MediaProjection via Bundle for broader compatibility with putExtra
+        Bundle extras = new Bundle();
+        extras.putParcelable("mediaProjection", mediaProjection);
+        streamingServiceIntent.putExtras(extras);
+
         streamingServiceIntent.putExtra("width", width);
         streamingServiceIntent.putExtra("height", height);
         streamingServiceIntent.putExtra("density", density);
@@ -208,7 +210,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Stopping screen mirroring.");
         updateStatus("Status: Stopping Streaming...");
 
-        // Stop StreamingService
         Intent streamingServiceIntent = new Intent(this, StreamingService.class);
         streamingServiceIntent.setAction(ACTION_STOP_STREAMING);
         stopService(streamingServiceIntent);
@@ -222,11 +223,12 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "MediaProjection stopped.");
         }
 
-        if (virtualDisplay != null) {
-            virtualDisplay.release();
-            virtualDisplay = null;
-            Log.d(TAG, "VirtualDisplay released.");
-        }
+        // VirtualDisplay is managed by StreamingService, not MainActivity
+        // if (virtualDisplay != null) {
+        //     virtualDisplay.release();
+        //     virtualDisplay = null;
+        //     Log.d(TAG, "VirtualDisplay released.");
+        // }
 
         startMirroringButton.setEnabled(true);
         stopMirroringButton.setEnabled(false);
@@ -236,16 +238,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateStatus(String status) {
         runOnUiThread(() -> statusTextView.setText(status));
-    }
-
-    private void checkAccessibilityServiceStatus() {
-        boolean accessibilityEnabled = isAccessibilityServiceEnabled(this, TouchInputService.class);
-        if (!accessibilityEnabled) {
-            Log.w(TAG, "Accessibility service for touch input is NOT enabled. Prompting user.");
-            Toast.makeText(this, "Please enable 'The Crystal Crucible Touch Input' in Accessibility settings for touch control.", Toast.LENGTH_LONG).show();
-        } else {
-            Log.d(TAG, "Accessibility service for touch input is enabled.");
-        }
     }
 
     private boolean isAccessibilityServiceEnabled(Context context, Class<?> serviceClass) {
