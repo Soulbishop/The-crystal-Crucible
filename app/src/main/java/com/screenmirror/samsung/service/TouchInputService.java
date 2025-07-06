@@ -2,9 +2,13 @@ package com.screenmirror.samsung.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
+import android.content.ComponentName; // FIX: Added import for ComponentName
+import android.content.Context;
 import android.graphics.Path;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings; // FIX: Added import for Settings
+import android.text.TextUtils; // Added if it might be used by other existing code, though not strictly needed for the fix
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -86,9 +90,9 @@ public class TouchInputService extends AccessibilityService implements Streaming
                     stroke = new GestureDescription.StrokeDescription(path, startTime, duration);
                     isTouching = true;
                     lastTouchX = x;
-                    lastTouchY = y; // Corrected: Completed the assignment
+                    lastTouchY = y;
                     Log.d(TAG, "Touch Down at " + x + ", " + y);
-                    break; // Added break
+                    break;
 
                 case "move":
                     if (isTouching && lastTouchX != -1 && lastTouchY != -1) {
@@ -100,7 +104,6 @@ public class TouchInputService extends AccessibilityService implements Streaming
                         Log.d(TAG, "Touch Move to " + x + ", " + y);
                     } else {
                         // If a "move" comes without a preceding "down", treat it as a new "down" for robustness
-                        // This might happen if the initial "down" packet was lost.
                         path.moveTo(x, y);
                         stroke = new GestureDescription.StrokeDescription(path, startTime, duration);
                         isTouching = true;
@@ -108,7 +111,7 @@ public class TouchInputService extends AccessibilityService implements Streaming
                         lastTouchY = y;
                         Log.w(TAG, "Received MOVE without prior DOWN. Treating as new DOWN at " + x + ", " + y);
                     }
-                    break; // Added break
+                    break;
 
                 case "up":
                     if (isTouching && lastTouchX != -1 && lastTouchY != -1) {
@@ -124,17 +127,25 @@ public class TouchInputService extends AccessibilityService implements Streaming
                         // No gesture to dispatch as there was no ongoing touch.
                         Log.w(TAG, "Received UP without prior DOWN. Ignoring.");
                     }
-                    break; // Added break
+                    break;
 
                 default:
                     Log.w(TAG, "Unknown touch action: " + action);
-                    break; // Added break
+                    break;
             }
 
             if (stroke != null) {
                 builder.addStroke(stroke);
                 dispatchGesture(builder.build(), null, null);
             }
-        }); // Corrected: Closed mainHandler.post lambda
-    } // Corrected: Closed onTouchEvent method
-} // Corrected: Closed TouchInputService class
+        });
+    }
+
+    // FIX: Added the isAccessibilityServiceEnabled method required by MainActivity
+    public static boolean isAccessibilityServiceEnabled(Context context) {
+        ComponentName cn = new ComponentName(context, TouchInputService.class);
+        String flat = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        // This check ensures that the Accessibility Service is among the enabled ones.
+        return flat != null && flat.contains(cn.flattenToString());
+    }
+}
