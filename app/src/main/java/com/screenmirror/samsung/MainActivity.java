@@ -25,14 +25,14 @@ import com.screenmirror.samsung.service.StreamingService;
 import com.screenmirror.samsung.service.DiscoveryService;
 
 /**
- * 🧪 MainActivity - ALCHEMICAL EDITION
- * 🔴 Samsung Galaxy S22 Ultra Screen Mirroring Controller
- * 🔵 Optimized for iPad Air 2 communication
- * ⚗️ Clean, corruption-free implementation
+ * MainActivity - Crystal Crucible Edition
+ * Samsung Galaxy S22 Ultra Screen Mirroring Controller
+ * Optimized for iPad Air 2 communication
+ * Clean implementation without Unicode decorations
  */
 public class MainActivity extends AppCompatActivity implements StreamingService.StreamingServiceListener {
 
-    private static final String TAG = "🔴MainActivity";
+    private static final String TAG = "MainActivity";
     private static final int REQUEST_MEDIA_PROJECTION = 1000;
     private static final int REQUEST_PERMISSIONS = 1001;
 
@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Log.d(TAG, "🧪 MainActivity onCreate - Alchemical initialization");
+        Log.d(TAG, "MainActivity onCreate - Crystal Crucible initialization");
 
         initializeViews();
         initializeServices();
@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     }
 
     /**
-     * 🔴 Initialize UI components with alchemical styling
+     * Initialize UI components
      */
     private void initializeViews() {
         startButton = findViewById(R.id.startButton);
@@ -76,13 +76,13 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         startButton.setOnClickListener(v -> startScreenMirroring());
         stopButton.setOnClickListener(v -> stopScreenMirroring());
 
-        // Set initial alchemical theme
-        statusText.setText("🧪 Alchemical Matrix Ready");
-        ipAddressText.setText("⚗️ Awaiting Network Transmutation");
+        // Set initial status
+        statusText.setText("Crystal Crucible Ready");
+        ipAddressText.setText("Awaiting Network Connection");
     }
 
     /**
-     * 🔵 Initialize core services
+     * Initialize core services
      */
     private void initializeServices() {
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -96,11 +96,11 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         startService(discoveryIntent);
         
         servicesStarted = true;
-        Log.d(TAG, "⚗️ Alchemical services initialized");
+        Log.d(TAG, "Crystal Crucible services initialized");
     }
 
     /**
-     * 🧪 Check and request necessary permissions
+     * Check and request necessary permissions
      */
     private void checkPermissions() {
         String[] permissions = {
@@ -130,24 +130,24 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     }
 
     /**
-     * 🔴 Start screen mirroring process
+     * Start screen mirroring process
      */
     private void startScreenMirroring() {
-        Log.d(TAG, "🧪 Starting alchemical screen transmutation");
+        Log.d(TAG, "Starting Crystal Crucible screen transmission");
         
         if (mediaProjectionManager != null) {
             Intent captureIntent = mediaProjectionManager.createScreenCaptureIntent();
             startActivityForResult(captureIntent, REQUEST_MEDIA_PROJECTION);
         } else {
-            showError("⚗️ MediaProjection not available");
+            showError("MediaProjection not available");
         }
     }
 
     /**
-     * 🔵 Stop screen mirroring process
+     * Stop screen mirroring process
      */
     private void stopScreenMirroring() {
-        Log.d(TAG, "🔴 Stopping alchemical transmutation");
+        Log.d(TAG, "Stopping Crystal Crucible transmission");
         
         isStreaming = false;
         
@@ -162,8 +162,8 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         }
         
         updateUI();
-        statusText.setText("🧪 Transmutation Halted");
-        Log.d(TAG, "⚗️ Screen mirroring stopped");
+        statusText.setText("Transmission Halted");
+        Log.d(TAG, "Screen mirroring stopped");
     }
 
     @Override
@@ -172,7 +172,7 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         
         if (requestCode == REQUEST_MEDIA_PROJECTION) {
             if (resultCode == Activity.RESULT_OK) {
-                Log.d(TAG, "🔴 MediaProjection permission granted");
+                Log.d(TAG, "MediaProjection permission granted");
                 
                 mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
                 
@@ -184,11 +184,11 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
                 
                 isStreaming = true;
                 updateUI();
-                statusText.setText("🧪 Alchemical Transmutation Active");
+                statusText.setText("Crystal Crucible Transmission Active");
                 
             } else {
-                Log.e(TAG, "⚗️ MediaProjection permission denied");
-                showError("🔴 Screen capture permission required for transmutation");
+                Log.e(TAG, "MediaProjection permission denied");
+                showError("Screen capture permission required for transmission");
             }
         }
     }
@@ -207,17 +207,17 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
             }
             
             if (allGranted) {
-                Log.d(TAG, "🔵 All permissions granted");
+                Log.d(TAG, "All permissions granted");
                 updateUI();
             } else {
-                Log.e(TAG, "🔴 Some permissions denied");
-                showError("⚗️ Permissions required for alchemical transmutation");
+                Log.e(TAG, "Some permissions denied");
+                showError("Permissions required for Crystal Crucible transmission");
             }
         }
     }
 
     /**
-     * 🧪 Update UI based on current state
+     * Update UI based on current state
      */
     private void updateUI() {
         runOnUiThread(() -> {
@@ -228,16 +228,16 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
             if (StreamingService.instance != null) {
                 String ipAddress = StreamingService.instance.getLocalIpAddress(this);
                 if (ipAddress != null) {
-                    ipAddressText.setText("🔴 Alchemical Portal: " + ipAddress + ":8080");
+                    ipAddressText.setText("Crystal Crucible Portal: " + ipAddress + ":8080");
                 } else {
-                    ipAddressText.setText("⚗️ Network Transmutation Pending");
+                    ipAddressText.setText("Network Connection Pending");
                 }
             }
         });
     }
 
     /**
-     * 🔴 Check if accessibility service is enabled for TouchInputService
+     * Check if accessibility service is enabled for TouchInputService
      */
     private boolean isAccessibilityServiceEnabled() {
         String enabledServices = Settings.Secure.getString(
@@ -252,11 +252,11 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     }
 
     /**
-     * 🔵 Show accessibility service setup dialog
+     * Show accessibility service setup dialog
      */
     private void showAccessibilityServiceDialog() {
         Toast.makeText(this, 
-            "🧪 Enable TouchInput Service in Accessibility Settings for full alchemical control", 
+            "Enable TouchInput Service in Accessibility Settings for full control", 
             Toast.LENGTH_LONG).show();
         
         // Optional: Open accessibility settings
@@ -265,7 +265,7 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     }
 
     /**
-     * ⚗️ Show error message with alchemical styling
+     * Show error message
      */
     private void showError(String message) {
         runOnUiThread(() -> {
@@ -277,39 +277,39 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     // StreamingService.StreamingServiceListener implementation
     @Override
     public void onClientConnected(String ipAddress) {
-        Log.d(TAG, "🧪 iPad client connected: " + ipAddress);
+        Log.d(TAG, "iPad client connected: " + ipAddress);
         runOnUiThread(() -> {
-            statusText.setText("🔴 iPad Connected - Transmutation Link Established");
-            Toast.makeText(this, "🧪 Alchemical connection established with iPad", Toast.LENGTH_SHORT).show();
+            statusText.setText("iPad Connected - Transmission Link Established");
+            Toast.makeText(this, "Connection established with iPad", Toast.LENGTH_SHORT).show();
         });
     }
 
     @Override
     public void onClientDisconnected() {
-        Log.d(TAG, "🔵 iPad client disconnected");
+        Log.d(TAG, "iPad client disconnected");
         runOnUiThread(() -> {
-            statusText.setText("⚗️ iPad Disconnected - Awaiting Reconnection");
+            statusText.setText("iPad Disconnected - Awaiting Reconnection");
         });
     }
 
     @Override
     public void onSignalingMessage(String message) {
-        Log.d(TAG, "🧪 Signaling message received: " + message);
+        Log.d(TAG, "Signaling message received: " + message);
     }
 
     @Override
     public void onOfferReceived(String sdp) {
-        Log.d(TAG, "🔴 WebRTC Offer received");
+        Log.d(TAG, "WebRTC Offer received");
     }
 
     @Override
     public void onAnswerReceived(String sdp) {
-        Log.d(TAG, "🔵 WebRTC Answer received");
+        Log.d(TAG, "WebRTC Answer received");
     }
 
     @Override
     public void onIceCandidateReceived(String candidate) {
-        Log.d(TAG, "⚗️ ICE Candidate received");
+        Log.d(TAG, "ICE Candidate received");
     }
 
     @Override
@@ -337,7 +337,7 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "🧪 MainActivity onDestroy - Cleaning up alchemical resources");
+        Log.d(TAG, "MainActivity onDestroy - Cleaning up Crystal Crucible resources");
         
         if (isStreaming) {
             stopScreenMirroring();
@@ -350,4 +350,3 @@ public class MainActivity extends AppCompatActivity implements StreamingService.
         }
     }
 }
-
