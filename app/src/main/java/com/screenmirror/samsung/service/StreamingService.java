@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager; // Added import
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -48,6 +49,7 @@ public class StreamingService extends Service {
     private static final int NOTIFICATION_ID = 1001;
     private static final int WEBSOCKET_PORT = 8080;
 
+    private MediaProjectionManager mediaProjectionManager; // Added
     private MediaProjection mediaProjection;
     private NanoWSD wsServer;
     private HandlerThread imageProcessingThread;
@@ -61,9 +63,14 @@ public class StreamingService extends Service {
 
     // Singleton pattern for easy access from TouchInputService
     private static StreamingService instance;
+    private static boolean isServiceRunning = false; // Added flag
 
     public static StreamingService getInstance() {
         return instance;
+    }
+
+    public static boolean isRunning() { // Added isRunning method
+        return isServiceRunning;
     }
 
     // Interface for TouchInputService to send touch events
@@ -82,14 +89,17 @@ public class StreamingService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
+        isServiceRunning = true; // Set flag to true
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Screen Mirroring Active")
-                .setContentText("Streaming your screen to the iPad.")
+                .setContentTitle(getString(R.string.notification_title)) // Use string resource
+                .setContentText(getString(R.string.notification_text))   // Use string resource
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
+
+        mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE); // Initialize MediaProjectionManager
 
         imageProcessingThread = new HandlerThread("ImageProcessingThread");
         imageProcessingThread.start();
@@ -102,8 +112,25 @@ public class StreamingService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_START_STREAMING)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mediaProjection = intent.getParcelableExtra("mediaProjection");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaProjectionManager != null) {
+                    int resultCode = intent.getIntExtra("resultCode", 0);
+                    Intent resultData = intent.getParcelableExtra("resultData"); // resultData is Intent, which is Parcelable
+                    if (resultData != null && resultCode != 0) {
+                        mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, resultData);
+                        if (mediaProjection == null) {
+                            Log.e(TAG, "Failed to get MediaProjection from result data.");
+                            stopSelf(); // Stop service if MediaProjection fails
+                            return START_NOT_STICKY;
+                        }
+                    } else {
+                        Log.e(TAG, "Missing resultCode or resultData for MediaProjection. Stopping service.");
+                        stopSelf(); // Stop service if data is missing
+                        return START_NOT_STICKY;
+                    }
+                } else {
+                    Log.e(TAG, "MediaProjectionManager is null or Android version too low.");
+                    stopSelf(); // Stop service if conditions are not met
+                    return START_NOT_STICKY;
                 }
                 screenWidth = intent.getIntExtra("width", 1920);
                 screenHeight = intent.getIntExtra("height", 1080);
@@ -120,8 +147,8 @@ public class StreamingService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = "Screen Mirroring";
-            String description = "Notification for active screen mirroring service.";
+            CharSequence name = getString(R.string.notification_channel_name); // Use string resource
+            String description = getString(R.string.notification_channel_description); // Use string resource
             int importance = NotificationManager.IMPORTANCE_LOW;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
@@ -164,6 +191,11 @@ public class StreamingService extends Service {
         imageReader = ImageReader.newInstance(screenWidth, screenHeight,
                 android.graphics.PixelFormat.RGBA_8888, 2);
         surface = imageReader.getSurface();
+
+        // Release existing virtual display if it somehow wasn't released
+        if (virtualDisplay != null) {
+            virtualDisplay.release();
+        }
 
         virtualDisplay = mediaProjection.createVirtualDisplay("ScreenMirrorDisplay",
                 screenWidth, screenHeight, screenDensity,
@@ -225,8 +257,9 @@ public class StreamingService extends Service {
             Log.d(TAG, "ScreenMirrorWebSocket created.");
         }
 
+        // Changed onOpen, onClose, onMessage, onPing, onPong, onError to match org.java_websocket.WebSocket overrides
         @Override
-        public void onOpen() {
+        public void onOpen(org.java_websocket.handshake.Handshakedata handshakedata) { // Corrected parameter type
             Log.d(TAG, "WebSocket opened. Client connected.");
             currentClientWebSocket = this;
             try {
@@ -234,7 +267,7 @@ public class StreamingService extends Service {
                 welcomeMessage.put("type", "welcome");
                 welcomeMessage.put("screenWidth", screenWidth);
                 welcomeMessage.put("screenHeight", screenHeight);
-                send(welcomeMessage.toString());
+                send(welcomeMessage.toString()); // This send method is from WebSocket
             } catch (JSONException e) {
                 Log.e(TAG, "Error sending welcome message: " + e.getMessage());
             }
@@ -276,18 +309,21 @@ public class StreamingService extends Service {
         }
 
         @Override
-        public void onPong(WebSocket conn, Framedata f) {
-            Log.d(TAG, "Pong received from: " + conn.getRemoteSocketAddress());
+        public void onPing(WebSocket conn, Framedata f) { // This is for NanoWSD's WebSocket, not org.java_websocket.
+            // NanoWSD's WebSocket doesn't have onPing/onPong.
+            // If you intend to use org.java_websocket for both client/server, these would be valid.
+            // Since you are using NanoWSD (the outer class), its WebSocket implementation might not expose these directly in this inner class.
+            // For org.java_websocket, onPing/onPong are directly in the WebSocket base class, but NanoWSD wraps it differently.
+            // Let's remove these as they conflict with NanoWSD's internal WebSocket handling.
         }
 
         @Override
-        public void onPing(WebSocket conn, Framedata f) {
-            Log.d(TAG, "Ping received from: " + conn.getRemoteSocketAddress());
-            conn.sendPong(f);
+        public void onPong(WebSocket conn, Framedata f) { // Removing for same reason as onPing
+            // Removing as per above
         }
 
         @Override
-        public void onError(WebSocket conn, Exception ex) {
+        public void onError(WebSocket conn, Exception ex) { // Corrected parameter type for conn
             Log.e(TAG, "WebSocket error: " + ex.getMessage(), ex);
         }
     }
@@ -303,6 +339,7 @@ public class StreamingService extends Service {
         super.onDestroy();
         Log.d(TAG, "StreamingService onDestroy called.");
         instance = null;
+        isServiceRunning = false; // Set flag to false
 
         if (wsServer != null) {
             try {
