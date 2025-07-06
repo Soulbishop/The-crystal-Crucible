@@ -16,10 +16,10 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.Surface;
-import android.hardware.display.DisplayManager; // Added import for DisplayManager
-import android.hardware.display.VirtualDisplay; // Added import for VirtualDisplay
-import android.net.wifi.WifiManager; // Added for IP address display
-import android.text.format.Formatter; // Added for IP address display
+import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.net.wifi.WifiManager;
+import android.text.format.Formatter;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -36,10 +36,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elonen.NanoHTTPD.IHTTPSession; // Explicit import
+import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.NanoWSD.WebSocket; // Explicit import
-import fi.iki.elonen.NanoWSD.WebSocketFrame; // Explicit import
+import fi.iki.elonen.NanoWSD.WebSocket;
+import fi.iki.elonen.NanoWSD.WebSocketFrame;
 
 public class StreamingService extends Service {
 
@@ -53,11 +53,11 @@ public class StreamingService extends Service {
     private HandlerThread imageProcessingThread;
     private Handler imageProcessingHandler;
     private ImageReader imageReader;
-    private VirtualDisplay virtualDisplay; // Added VirtualDisplay
+    private VirtualDisplay virtualDisplay;
     private Surface surface;
     private int screenWidth, screenHeight, screenDensity;
 
-    private static WebSocket currentClientWebSocket; [span_9](start_span)// Store the current client WebSocket[span_9](end_span)
+    private static WebSocket currentClientWebSocket;
 
     // Singleton pattern for easy access from TouchInputService
     private static StreamingService instance;
@@ -69,7 +69,6 @@ public class StreamingService extends Service {
     // Interface for TouchInputService to send touch events
     public interface TouchCallback {
         void onTouchEvent(float x, float y, String action);
-        // You can add more granular touch events if needed, e.g., onTouchDown, onTouchMove, onTouchUp
     }
 
     private TouchCallback touchCallback;
@@ -82,7 +81,7 @@ public class StreamingService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        instance = this; // Set singleton instance
+        instance = this;
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Screen Mirroring Active")
@@ -96,21 +95,20 @@ public class StreamingService extends Service {
         imageProcessingThread.start();
         imageProcessingHandler = new Handler(imageProcessingThread.getLooper());
 
-        startWebSocketServer(); [span_10](start_span)//[span_10](end_span)
+        startWebSocketServer();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_START_STREAMING)) {
-                [span_11](start_span)// Ensure MediaProjection is correctly passed and handled[span_11](end_span)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     mediaProjection = intent.getParcelableExtra("mediaProjection");
                 }
                 screenWidth = intent.getIntExtra("width", 1920);
                 screenHeight = intent.getIntExtra("height", 1080);
                 screenDensity = intent.getIntExtra("density", 1);
-                startScreenCapture(); [span_12](start_span)//[span_12](end_span)
+                startScreenCapture();
                 Log.d(TAG, "Streaming service started with MediaProjection. Resolution: " + screenWidth + "x" + screenHeight);
             } else if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_STOP_STREAMING)) {
                 stopSelf();
@@ -143,7 +141,7 @@ public class StreamingService extends Service {
         try {
             wsServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             Log.d(TAG, "WebSocket server started on port " + WEBSOCKET_PORT);
-            displayIpAddress(); // Display IP when server starts
+            displayIpAddress();
         } catch (IOException e) {
             Log.e(TAG, "Error starting WebSocket server: " + e.getMessage());
             e.printStackTrace();
@@ -164,14 +162,13 @@ public class StreamingService extends Service {
         }
 
         imageReader = ImageReader.newInstance(screenWidth, screenHeight,
-                android.graphics.PixelFormat.RGBA_8888, 2); // Capture 2 frames at a time
+                android.graphics.PixelFormat.RGBA_8888, 2);
         surface = imageReader.getSurface();
 
-        [span_13](start_span)// Ensure VirtualDisplay is properly created and managed by this service[span_13](end_span)
         virtualDisplay = mediaProjection.createVirtualDisplay("ScreenMirrorDisplay",
                 screenWidth, screenHeight, screenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, // Use DisplayManager constant
-                surface, null, imageProcessingHandler); // Use imageProcessingHandler
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                surface, null, imageProcessingHandler);
 
         imageReader.setOnImageAvailableListener(reader -> {
             Image image = null;
@@ -187,7 +184,7 @@ public class StreamingService extends Service {
                     image.close();
                 }
             }
-        }, imageProcessingHandler); // Use imageProcessingHandler for image processing
+        }, imageProcessingHandler);
         Log.d(TAG, "Screen capture started.");
     }
 
@@ -197,16 +194,13 @@ public class StreamingService extends Service {
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
 
-            // Convert RGBA to JPEG
             Bitmap bitmap = ImageUtils.imageToBitmap(image);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos); // Adjust quality as needed
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
             byte[] jpegBytes = bos.toByteArray();
 
             try {
-                // Send JPEG bytes over WebSocket
                 currentClientWebSocket.send(jpegBytes);
-                // Log.d(TAG, "Sent JPEG frame of size: " + jpegBytes.length); // Too verbose, uncomment for debug
             } catch (Exception e) {
                 Log.e(TAG, "Error sending image over WebSocket: " + e.getMessage());
             } finally {
@@ -229,8 +223,7 @@ public class StreamingService extends Service {
         @Override
         protected void onOpen() {
             Log.d(TAG, "WebSocket opened. Client connected.");
-            currentClientWebSocket = this; [span_14](start_span)// Set this as the current active client[span_14](end_span)
-            // Optionally send some initial metadata like screen resolution
+            currentClientWebSocket = this;
             try {
                 JSONObject welcomeMessage = new JSONObject();
                 welcomeMessage.put("type", "welcome");
@@ -243,12 +236,11 @@ public class StreamingService extends Service {
         }
 
         @Override
-        [span_15](start_span)public void onClose(int code, String reason, boolean initiatedByRemote) { // CORRECTED LINE: Changed CloseCode to int[span_15](end_span)
+        public void onClose(int code, String reason, boolean initiatedByRemote) {
             Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
             if (this == currentClientWebSocket) {
-                currentClientWebSocket = null; // Clear the active client if this one closes
+                currentClientWebSocket = null;
             }
-            // Handle WebSocket closure, e.g., attempt reconnection or update UI
         }
 
         @Override
@@ -260,7 +252,6 @@ public class StreamingService extends Service {
                     JSONObject json = new JSONObject(textMessage);
                     String type = json.optString("type");
                     if ("touchEvent".equals(type)) {
-                        // Pass touch event to registered callback (TouchInputService)
                         if (touchCallback != null) {
                             float x = (float) json.optDouble("x");
                             float y = (float) json.optDouble("y");
@@ -270,12 +261,10 @@ public class StreamingService extends Service {
                             Log.w(TAG, "TouchCallback not set. Touch event not processed.");
                         }
                     }
-                    // Add other message types as needed
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
             } else if (message.isBinary()) {
-                // Not expecting binary messages from iPad for touch, but good to log
                 Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
             }
         }
@@ -306,7 +295,7 @@ public class StreamingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "StreamingService onDestroy called.");
-        instance = null; // Clear singleton instance
+        instance = null;
 
         if (wsServer != null) {
             try {
@@ -339,7 +328,6 @@ public class StreamingService extends Service {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            Log.d(TAG, "Image processing thread stopped.");
         }
         stopForeground(true);
         Log.d(TAG, "Streaming Service destroyed.");
