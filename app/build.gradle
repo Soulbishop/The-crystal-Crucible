@@ -1,6 +1,10 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
 // app/build.gradle (Module: app)
 
-// ... (Your existing plugins and android block) ...
+plugins {
+    id 'com.android.application' // THIS LINE IS CRUCIAL
+    // Other plugins might be here, e.g., 'org.jetbrains.kotlin.android'
+}
 
 android {
     namespace 'com.screenmirror.samsung'
@@ -51,4 +55,3 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
-
