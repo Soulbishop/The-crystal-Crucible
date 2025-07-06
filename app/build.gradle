@@ -1,9 +1,10 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
 // app/build.gradle (Module: app)
 
+// This 'plugins' block MUST be at the very top of your build.gradle file
 plugins {
-    id 'com.android.application' // THIS LINE IS CRUCIAL
-    // Other plugins might be here, e.g., 'org.jetbrains.kotlin.android'
+    id 'com.android.application' // This line tells Gradle to apply the Android Application plugin
+    // If you have other plugins like Kotlin, they would also go here, e.g.:
+    // id 'org.jetbrains.kotlin.android'
 }
 
 android {
@@ -33,24 +34,21 @@ android {
 }
 
 dependencies {
+    // AndroidX Libraries
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.cardview:cardview:1.0.0' // Make sure this is included if you use CardView
+    implementation 'androidx.cardview:cardview:1.0.0'
 
-    // For NanoHTTPD/NanoWSD (your WebSocket server)
+    // WebSocket Libraries
+    // NanoHTTPD/NanoWSD for the server
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
 
-    // For org.java_websocket (the client library used within your service for client-side WebSocket,
-    // though you are using NanoWSD for the server. Let's include this anyway as your error refers to it).
-    // Note: It's slightly confusing that you import org.java_websocket but use NanoWSD.
-    // However, the errors explicitly point to missing org.java_websocket.
-    // If you are exclusively using NanoWSD for the server and plan to implement client-side only with this,
-    // then org.java_websocket might not be needed. But given the errors, let's add it.
+    // Java-WebSocket for general WebSocket client interactions or if NanoWSD has a dependency
     implementation 'org.java-websocket:Java-WebSocket:1.5.3'
 
-
+    // Testing Dependencies
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
