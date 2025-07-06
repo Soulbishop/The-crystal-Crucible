@@ -3,6 +3,7 @@ package com.screenmirror.samsung.service;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.media.projection.MediaProjectionManager;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.text.format.Formatter;
@@ -34,6 +35,9 @@ public class StreamingService extends Service {
     private static final String TAG = "StreamingService";
     private static final int WEBSOCKET_PORT = 8080;
 
+    // Singleton instance for easy access
+    public static StreamingService instance;
+
     private WebSocketServer webSocketServer;
     private MediaProjectionManager mediaProjectionManager;
     private ScreenCaptureService.ScreenCaptureListener screenCaptureListener;
@@ -46,15 +50,26 @@ public class StreamingService extends Service {
         void onTouchInputReceived(JSONObject touchData);
     }
 
+    // Interface for TouchInputService to register callbacks
+    public interface TouchCallback {
+        void onTouchEvent(JSONObject touchData);
+    }
+
     private StreamingServiceListener listener;
+    private TouchCallback touchCallback;
 
     public void setListener(StreamingServiceListener listener) {
         this.listener = listener;
     }
 
+    public void setTouchCallback(TouchCallback touchCallback) {
+        this.touchCallback = touchCallback;
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         Log.d(TAG, "StreamingService onCreate");
         executorService = Executors.newSingleThreadExecutor();
     }
@@ -71,6 +86,7 @@ public class StreamingService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        instance = null;
         Log.d(TAG, "StreamingService onDestroy");
         stopWebSocketServer();
         if (executorService != null) {
@@ -148,7 +164,7 @@ public class StreamingService extends Service {
         }
 
         @Override
-        protected void onClose(CloseCode code, String reason, boolean initiatedByRemote) {
+        protected void onClose(int code, String reason, boolean initiatedByRemote) {
             Log.d(TAG, "🔴 WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
             if (serviceContext.listener != null) {
                 serviceContext.listener.onClientDisconnected();
@@ -164,8 +180,8 @@ public class StreamingService extends Service {
                 String type = json.optString("type");
 
                 if ("touch".equals(type)) {
-                    if (serviceContext.listener != null) {
-                        serviceContext.listener.onTouchInputReceived(json);
+                    if (serviceContext.touchCallback != null) {
+                        serviceContext.touchCallback.onTouchEvent(json);
                     }
                 } else if ("video_stream_start".equals(type)) {
                     // Handle video stream start command
