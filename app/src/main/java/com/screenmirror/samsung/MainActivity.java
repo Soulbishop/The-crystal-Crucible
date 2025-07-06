@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> mediaProjectionLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
 
-    [span_0](start_span)// MediaProjection callbacks for Android 14+[span_0](end_span)
+    // MediaProjection callbacks for Android 14+
     private MediaProjection.Callback mediaProjectionCallback;
 
     @Override
@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
                         mediaProjection = mediaProjectionManager.getMediaProjection(result.getResultCode(), result.getData());
                         if (mediaProjection != null) {
                             Log.d(TAG, "MediaProjection obtained successfully.");
-                            [span_1](start_span)setupMediaProjectionCallbacks(); // Setup callbacks for Android 14+[span_1](end_span)
+                            setupMediaProjectionCallbacks(); // Setup callbacks for Android 14+
                             startScreenMirroring();
                         } else {
                             Log.e(TAG, "Failed to get MediaProjection after user consent.");
@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupMediaProjectionCallbacks() {
-        [span_2](start_span)if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34)[span_2](end_span)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34)
             mediaProjectionCallback = new MediaProjection.Callback() {
                 @Override
                 public void onCapturedContentResize(int width, int height) {
@@ -148,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
                     super.onStop();
                     Log.d(TAG, "MediaProjection onStop callback triggered.");
                     Toast.makeText(MainActivity.this, "Screen capture stopped by system.", Toast.LENGTH_SHORT).show();
-                    stopScreenMirroring(); [span_3](start_span)// Automatically stop mirroring if MediaProjection stops[span_3](end_span)
+                    stopScreenMirroring(); // Automatically stop mirroring if MediaProjection stops
                 }
             };
             mediaProjection.registerCallback(mediaProjectionCallback, new Handler(Looper.getMainLooper()));
@@ -162,7 +162,7 @@ public class MainActivity extends AppCompatActivity {
                     super.onStop();
                     Log.d(TAG, "MediaProjection onStop callback triggered (Legacy).");
                     Toast.makeText(MainActivity.this, "Screen capture stopped by system.", Toast.LENGTH_SHORT).show();
-                    stopScreenMirroring(); [span_4](start_span)// Automatically stop mirroring if MediaProjection stops[span_4](end_span)
+                    stopScreenMirroring(); // Automatically stop mirroring if MediaProjection stops
                 }
             };
             mediaProjection.registerCallback(mediaProjectionCallback, new Handler(Looper.getMainLooper()));
@@ -190,22 +190,14 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Starting services for mirroring. Resolution: " + width + "x" + height + " Density: " + density);
         updateStatus("Status: Streaming Active");
 
-        [span_5](start_span)// Start StreamingService[span_5](end_span)
+        // Start StreamingService
         Intent streamingServiceIntent = new Intent(this, StreamingService.class);
         streamingServiceIntent.setAction(ACTION_START_STREAMING);
         streamingServiceIntent.putExtra("mediaProjection", mediaProjection);
         streamingServiceIntent.putExtra("width", width);
         streamingServiceIntent.putExtra("height", height);
         streamingServiceIntent.putExtra("density", density);
-        startForegroundService(streamingServiceIntent); [span_6](start_span)// Use startForegroundService for Android 8+[span_6](end_span)
-
-        // Start ScreenCaptureService (if it's intended to be a separate service, otherwise integrate logic)
-        // For this streamlined solution, StreamingService will handle the capture directly.
-        // If ScreenCaptureService is intended for something else, its start logic goes here.
-
-        // Ensure TouchInputService is running (if enabled as accessibility service)
-        // Intent touchInputServiceIntent = new Intent(this, TouchInputService.class);
-        // startService(touchInputServiceIntent); // Not directly started, but enabled via settings
+        startForegroundService(streamingServiceIntent);
 
         startMirroringButton.setEnabled(false);
         stopMirroringButton.setEnabled(true);
@@ -215,13 +207,12 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Stopping screen mirroring.");
         updateStatus("Status: Stopping Streaming...");
 
-        [span_7](start_span)// Stop StreamingService[span_7](end_span)
+        // Stop StreamingService
         Intent streamingServiceIntent = new Intent(this, StreamingService.class);
         streamingServiceIntent.setAction(ACTION_STOP_STREAMING);
         stopService(streamingServiceIntent);
 
         if (mediaProjection != null) {
-            [span_8](start_span)// Unregister MediaProjection callbacks[span_8](end_span)
             if (mediaProjectionCallback != null) {
                 mediaProjection.unregisterCallback(mediaProjectionCallback);
                 mediaProjectionCallback = null;
@@ -232,7 +223,6 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "MediaProjection stopped.");
         }
 
-        // Stop VirtualDisplay if it was directly managed here (it's now managed by StreamingService)
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
@@ -254,43 +244,5 @@ public class MainActivity extends AppCompatActivity {
         if (!accessibilityEnabled) {
             Log.w(TAG, "Accessibility service for touch input is NOT enabled. Prompting user.");
             Toast.makeText(this, "Please enable 'The Crystal Crucible Touch Input' in Accessibility settings for touch control.", Toast.LENGTH_LONG).show();
-            // Optionally, direct user to settings
-            // Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            // startActivity(intent);
         } else {
-            Log.d(TAG, "Accessibility service for touch input is enabled.");
-        }
-    }
-
-    private boolean isAccessibilityServiceEnabled(Context context, Class<?> serviceClass) {
-        String service = context.getPackageName() + "/" + serviceClass.getCanonicalName();
-        int accessibilityEnabled = 0;
-        try {
-            accessibilityEnabled = Settings.Secure.getInt(context.getContentResolver(),
-                    Settings.Secure.ACCESSIBILITY_ENABLED);
-        } catch (Settings.SettingNotFoundException e) {
-            Log.e(TAG, "Error finding setting ACCESSIBILITY_ENABLED: " + e.getMessage());
-        }
-        if (accessibilityEnabled == 1) {
-            String settingValue = Settings.Secure.getString(context.getContentResolver(),
-                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            if (settingValue != null) {
-                return settingValue.contains(service);
-            }
-        }
-        return false;
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Log.d(TAG, "MainActivity onDestroy.");
-        if (mediaProjection != null) {
-            if (mediaProjectionCallback != null) {
-                mediaProjection.unregisterCallback(mediaProjectionCallback);
-            }
-            mediaProjection.stop();
-            mediaProjection = null;
-        }
-    }
-}
+            Log.d(TAG, "
