@@ -7,30 +7,23 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
-// This service might be redundant if StreamingService handles MediaProjection directly.
-// Keeping it as a placeholder if it's referenced elsewhere.
-public class ScreenCaptureService extends Service {
+// This is a placeholder for DiscoveryService. Its actual implementation would depend
+// on how devices are to be discovered (e.g., mDNS/Bonjour, UPnP, manual IP entry, etc.).
+// For now, it's a basic service structure.
+public class DiscoveryService extends Service {
 
-    private static final String TAG = "ScreenCaptureService";
-
-    // You might define an interface here if other components need to listen for capture events.
-    // public interface ScreenCaptureListener {
-    //     void onScreenCaptureStarted();
-    //     void onScreenCaptureStopped();
-    //     void onFrameCaptured(byte[] jpegData);
-    // }
+    private static final String TAG = "DiscoveryService";
 
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "ScreenCaptureService created (placeholder).");
+        Log.d(TAG, "DiscoveryService created (placeholder).");
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "ScreenCaptureService onStartCommand (placeholder).");
-        // This service typically would start MediaProjection and image capture,
-        // but that logic is now in StreamingService for simplicity.
+        Log.d(TAG, "DiscoveryService onStartCommand (placeholder).");
+        // Implement device discovery logic here (e.g., start scanning for devices)
         return START_NOT_STICKY;
     }
 
@@ -43,6 +36,7 @@ public class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "ScreenCaptureService destroyed (placeholder).");
+        Log.d(TAG, "DiscoveryService destroyed (placeholder).");
+        // Clean up discovery resources (e.g., stop scanning)
     }
 }
