@@ -7,23 +7,23 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
-// This is a placeholder for DiscoveryService. Its actual implementation would depend
-// on how devices are to be discovered (e.g., mDNS/Bonjour, UPnP, manual IP entry, etc.).
-// For now, it's a basic service structure.
-public class DiscoveryService extends Service {
+// This service is now a placeholder. MediaProjection and image capture logic
+// have been moved directly into StreamingService for a more streamlined architecture.
+// Keep this file if it's referenced elsewhere in your project (e.g., AndroidManifest.xml)
+// but it will not actively perform screen capture.
+public class ScreenCaptureService extends Service {
 
-    private static final String TAG = "DiscoveryService";
+    private static final String TAG = "ScreenCaptureService";
 
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "DiscoveryService created (placeholder).");
+        Log.d(TAG, "ScreenCaptureService created (placeholder).");
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "DiscoveryService onStartCommand (placeholder).");
-        // Implement device discovery logic here (e.g., start scanning for devices)
+        Log.d(TAG, "ScreenCaptureService onStartCommand (placeholder).");
         return START_NOT_STICKY;
     }
 
@@ -36,7 +36,6 @@ public class DiscoveryService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "DiscoveryService destroyed (placeholder).");
-        // Clean up discovery resources (e.g., stop scanning)
+        Log.d(TAG, "ScreenCaptureService destroyed (placeholder).");
     }
 }
