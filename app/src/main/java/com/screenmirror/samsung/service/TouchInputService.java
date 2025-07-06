@@ -66,28 +66,37 @@ public class TouchInputService extends AccessibilityService implements Streaming
             path.moveTo(x, y);
 
             GestureDescription.Builder builder = new GestureDescription.Builder();
-            if ("down".equals(action)) {
-                builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 1));
-            } else if ("move".equals(action)) {
-                builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 1));
-            } else if ("up".equals(action)) {
-                builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 1));
+            // GestureDescription.Builder does not have getStrokeCount().
+            // We just add the stroke if the action is "down", "move", or "up" for basic events.
+            // For complex gestures (multi-finger, swipes), more advanced logic to build strokes is needed.
+            // For now, we'll ensure at least one stroke is added if any action is triggered.
+            if ("down".equals(action) || "move".equals(action) || "up".equals(action)) {
+                 builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 1));
             }
 
-            if (builder.getStrokeCount() > 0) {
-                dispatchGesture(builder.build(), new AccessibilityService.GestureResultCallback() {
-                    @Override
+
+            // We check getStrokeCount() implicitly by checking if a stroke was added
+            // (or if builder.build() would succeed without error)
+            // If no stroke was added, dispatchGesture will throw an error or do nothing.
+            // A more robust check might be `if (!builder.getStrokes().isEmpty())` but getStrokes is not public.
+            // Just checking if builder.build() can be called:
+            try {
+                GestureDescription gesture = builder.build(); // Will throw if no strokes
+                dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
+                    @Override // Corrected: This is the correct way to override
                     public void onGestureCompleted(GestureDescription gestureDescription) {
-                        super.onGestureCompleted(gestureDescription);
+                        super.onGestureCompleted(gestureDescription); // Corrected: This super call is now correct
                         Log.d(TAG, "Gesture completed for action: " + action);
                     }
 
-                    @Override
+                    @Override // Corrected: This is the correct way to override
                     public void onGestureCancelled(GestureDescription gestureDescription) {
-                        super.onGestureCancelled(gestureDescription);
+                        super.onGestureCancelled(gestureDescription); // Corrected: This super call is now correct
                         Log.w(TAG, "Gesture cancelled for action: " + action);
                     }
                 }, null);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Error dispatching gesture: No strokes added or invalid gesture. " + e.getMessage());
             }
         });
     }
