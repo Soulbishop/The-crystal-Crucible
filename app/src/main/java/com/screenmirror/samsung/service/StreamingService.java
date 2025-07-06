@@ -26,14 +26,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 🧪 StreamingService - ALCHEMICAL EDITION
- * 🔴 Samsung Galaxy S22 Ultra WebSocket Streaming Service
- * 🔵 Optimized for iPad Air 2 communication
- * ⚗️ FINAL WORKING VERSION for NanoHTTPD 2.3.1
+ * StreamingService - Crystal Crucible Edition
+ * Samsung Galaxy S22 Ultra WebSocket Streaming Service
+ * Optimized for iPad Air 2 communication
+ * Clean implementation for NanoHTTPD 2.3.1
  */
 public class StreamingService extends Service {
 
-    private static final String TAG = "🔴StreamingService";
+    private static final String TAG = "StreamingService";
     private static final int SIGNALING_PORT = 8080;
 
     public static StreamingService instance;
@@ -69,20 +69,20 @@ public class StreamingService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        Log.d(TAG, "🧪 StreamingService onCreate - Alchemical WebSocket server initializing");
+        Log.d(TAG, "StreamingService onCreate - Crystal Crucible WebSocket server initializing");
         startWebServer();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "🔴 StreamingService onStartCommand");
+        Log.d(TAG, "StreamingService onStartCommand");
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "🔵 StreamingService onDestroy - Cleaning up alchemical resources");
+        Log.d(TAG, "StreamingService onDestroy - Cleaning up Crystal Crucible resources");
         stopWebServer();
         instance = null;
         if (executor != null) {
@@ -108,9 +108,9 @@ public class StreamingService extends Service {
             try {
                 webServer = new ScreenMirrorWebServer(SIGNALING_PORT, this);
                 webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-                Log.d(TAG, "⚗️ Alchemical signaling server started on port " + SIGNALING_PORT);
+                Log.d(TAG, "Crystal Crucible signaling server started on port " + SIGNALING_PORT);
             } catch (IOException e) {
-                Log.e(TAG, "🔴 Error starting web server: " + e.getMessage(), e);
+                Log.e(TAG, "Error starting web server: " + e.getMessage(), e);
             }
         }
     }
@@ -119,7 +119,7 @@ public class StreamingService extends Service {
         if (webServer != null) {
             webServer.stop();
             webServer = null;
-            Log.d(TAG, "🧪 Alchemical signaling server stopped");
+            Log.d(TAG, "Crystal Crucible signaling server stopped");
         }
     }
 
@@ -133,12 +133,12 @@ public class StreamingService extends Service {
                 json.put("type", "offer");
                 json.put("sdp", sdp);
                 webServer.getCurrentWebSocket().send(json.toString());
-                Log.d(TAG, "🔴 Sent SDP Offer: " + sdp);
+                Log.d(TAG, "Sent SDP Offer: " + sdp);
             } catch (IOException | JSONException e) {
-                Log.e(TAG, "⚗️ Error sending SDP offer: " + e.getMessage(), e);
+                Log.e(TAG, "Error sending SDP offer: " + e.getMessage(), e);
             }
         } else {
-            Log.d(TAG, "🔵 No WebSocket client connected to send SDP offer immediately. Stored.");
+            Log.d(TAG, "No WebSocket client connected to send SDP offer immediately. Stored.");
         }
     }
 
@@ -149,12 +149,12 @@ public class StreamingService extends Service {
                 json.put("type", "answer");
                 json.put("sdp", sdp);
                 webServer.getCurrentWebSocket().send(json.toString());
-                Log.d(TAG, "🧪 Sent SDP Answer: " + sdp);
+                Log.d(TAG, "Sent SDP Answer: " + sdp);
             } catch (IOException | JSONException e) {
-                Log.e(TAG, "🔴 Error sending SDP answer: " + e.getMessage(), e);
+                Log.e(TAG, "Error sending SDP answer: " + e.getMessage(), e);
             }
         } else {
-            Log.e(TAG, "⚗️ No WebSocket client connected to send SDP answer");
+            Log.e(TAG, "No WebSocket client connected to send SDP answer");
         }
     }
 
@@ -165,12 +165,12 @@ public class StreamingService extends Service {
                 json.put("type", "candidate");
                 json.put("candidate", candidate);
                 webServer.getCurrentWebSocket().send(json.toString());
-                Log.d(TAG, "🔵 Sent ICE Candidate: " + candidate);
+                Log.d(TAG, "Sent ICE Candidate: " + candidate);
             } catch (IOException | JSONException e) {
-                Log.e(TAG, "🔴 Error sending ICE candidate: " + e.getMessage(), e);
+                Log.e(TAG, "Error sending ICE candidate: " + e.getMessage(), e);
             }
         } else {
-            Log.d(TAG, "🧪 No WebSocket client connected to send ICE candidate immediately. Stored.");
+            Log.d(TAG, "No WebSocket client connected to send ICE candidate immediately. Stored.");
             pendingIceCandidates.add(candidate);
         }
     }
@@ -206,32 +206,32 @@ public class StreamingService extends Service {
                 case "offer":
                     String sdpOffer = json.getString("sdp");
                     if (listener != null) listener.onOfferReceived(sdpOffer);
-                    Log.d(TAG, "⚗️ Received SDP Offer");
+                    Log.d(TAG, "Received SDP Offer");
                     break;
                 case "answer":
                     String sdpAnswer = json.getString("sdp");
                     if (listener != null) listener.onAnswerReceived(sdpAnswer);
-                    Log.d(TAG, "🔴 Received SDP Answer");
+                    Log.d(TAG, "Received SDP Answer");
                     break;
                 case "candidate":
                     String candidate = json.getString("candidate");
                     if (listener != null) listener.onIceCandidateReceived(candidate);
-                    Log.d(TAG, "🔵 Received ICE Candidate");
+                    Log.d(TAG, "Received ICE Candidate");
                     break;
                 case "touch":
                     handleTouchMessage(json);
                     break; 
                 default:
-                    Log.w(TAG, "🧪 Unknown signaling message type: " + type);
+                    Log.w(TAG, "Unknown signaling message type: " + type);
                     break;
             }
         } catch (JSONException e) {
-            Log.e(TAG, "⚗️ Error parsing signaling message JSON: " + e.getMessage(), e);
+            Log.e(TAG, "Error parsing signaling message JSON: " + e.getMessage(), e);
         }
     }
 
     /**
-     * 🧪 Handle touch input messages from iPad
+     * Handle touch input messages from iPad
      */
     private void handleTouchMessage(JSONObject json) {
         try {
@@ -257,12 +257,12 @@ public class StreamingService extends Service {
                         touchCallback.onPinchReceived(scale);
                         break;
                     default:
-                        Log.w(TAG, "🔴 Unknown touch type: " + touchType);
+                        Log.w(TAG, "Unknown touch type: " + touchType);
                         break;
                 }
             }
         } catch (JSONException e) {
-            Log.e(TAG, "🔵 Error parsing touch message: " + e.getMessage(), e);
+            Log.e(TAG, "Error parsing touch message: " + e.getMessage(), e);
         }
     }
 
@@ -291,7 +291,7 @@ public class StreamingService extends Service {
 
         @Override
         protected WebSocket openWebSocket(IHTTPSession handshake) { 
-            Log.d(TAG, "🧪 WebSocket opened from " + handshake.getRemoteIpAddress());
+            Log.d(TAG, "WebSocket opened from " + handshake.getRemoteIpAddress());
             
             // Simply replace the current WebSocket
             this.currentWebSocket = new SignalingWebSocket(handshake, serviceContext);
@@ -310,7 +310,7 @@ public class StreamingService extends Service {
                         json.put("sdp", pendingSdp);
                         currentWebSocket.send(json.toString());
                         serviceContext.clearPendingSdp(); 
-                        Log.d(TAG, "🔵 Sent pending SDP to new client");
+                        Log.d(TAG, "Sent pending SDP to new client");
                     }
 
                     List<String> candidatesToSend = new ArrayList<>(serviceContext.getPendingIceCandidates());
@@ -319,11 +319,11 @@ public class StreamingService extends Service {
                         json.put("type", "candidate");
                         json.put("candidate", candidate);
                         currentWebSocket.send(json.toString());
-                        Log.d(TAG, "🧪 Sent pending ICE Candidate to new client: " + candidate);
+                        Log.d(TAG, "Sent pending ICE Candidate to new client: " + candidate);
                     }
                     serviceContext.clearPendingIceCandidates(); 
                 } catch (IOException | JSONException e) {
-                    Log.e(TAG, "🔴 Error sending pending messages to new client: " + e.getMessage(), e);
+                    Log.e(TAG, "Error sending pending messages to new client: " + e.getMessage(), e);
                 }
             });
 
@@ -332,7 +332,7 @@ public class StreamingService extends Service {
     }
 
     /**
-     * ⚗️ FINAL WebSocket implementation with correct abstract method signature
+     * Working WebSocket implementation for NanoHTTPD 2.3.1
      */
     private static class SignalingWebSocket extends WebSocket {
         private StreamingService serviceContext;
@@ -344,12 +344,12 @@ public class StreamingService extends Service {
 
         @Override
         protected void onOpen() {
-            Log.d(TAG, "🧪 Alchemical WebSocket connection opened");
+            Log.d(TAG, "Crystal Crucible WebSocket connection opened");
         }
 
         @Override
         protected void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "🔴 WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
+            Log.d(TAG, "WebSocket connection closed. Code: " + code + ", Reason: " + reason + ", Remote: " + initiatedByRemote);
             if (serviceContext.listener != null) {
                 serviceContext.listener.onClientDisconnected();
             }
@@ -358,19 +358,18 @@ public class StreamingService extends Service {
         @Override
         protected void onMessage(WebSocketFrame message) {
             String msg = message.getTextPayload();
-            Log.d(TAG, "🔵 Received WebSocket message: " + msg);
+            Log.d(TAG, "Received WebSocket message: " + msg);
             serviceContext.handleSignalingMessage(msg);
         }
 
         @Override
         protected void onPong(WebSocketFrame pong) {
-            Log.d(TAG, "⚗️ Received Pong");
+            Log.d(TAG, "Received Pong");
         }
 
         @Override
         protected void onException(IOException exception) {
-            Log.e(TAG, "🔴 WebSocket error: " + exception.getMessage(), exception);
+            Log.e(TAG, "WebSocket error: " + exception.getMessage(), exception);
         }
     }
 }
-
