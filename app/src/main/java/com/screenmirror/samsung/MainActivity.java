@@ -187,6 +187,7 @@ public class MainActivity extends AppCompatActivity {
         int height = metrics.heightPixels;
         int density = metrics.densityDpi;
 
+        // Corrected line 248: Ensure the string literal is properly closed.
         Log.d(TAG, "Starting services for mirroring. Resolution: " + width + "x" + height + " Density: " + density);
         updateStatus("Status: Streaming Active");
 
@@ -215,8 +216,6 @@ public class MainActivity extends AppCompatActivity {
         if (mediaProjection != null) {
             if (mediaProjectionCallback != null) {
                 mediaProjection.unregisterCallback(mediaProjectionCallback);
-                mediaProjectionCallback = null;
-                Log.d(TAG, "MediaProjection callbacks unregistered.");
             }
             mediaProjection.stop();
             mediaProjection = null;
@@ -245,4 +244,39 @@ public class MainActivity extends AppCompatActivity {
             Log.w(TAG, "Accessibility service for touch input is NOT enabled. Prompting user.");
             Toast.makeText(this, "Please enable 'The Crystal Crucible Touch Input' in Accessibility settings for touch control.", Toast.LENGTH_LONG).show();
         } else {
-            Log.d(TAG, "
+            Log.d(TAG, "Accessibility service for touch input is enabled.");
+        }
+    }
+
+    private boolean isAccessibilityServiceEnabled(Context context, Class<?> serviceClass) {
+        String service = context.getPackageName() + "/" + serviceClass.getCanonicalName();
+        int accessibilityEnabled = 0;
+        try {
+            accessibilityEnabled = Settings.Secure.getInt(context.getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED);
+        } catch (Settings.SettingNotFoundException e) {
+            Log.e(TAG, "Error finding setting ACCESSIBILITY_ENABLED: " + e.getMessage());
+        }
+        if (accessibilityEnabled == 1) {
+            String settingValue = Settings.Secure.getString(context.getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (settingValue != null) {
+                return settingValue.contains(service);
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "MainActivity onDestroy.");
+        if (mediaProjection != null) {
+            if (mediaProjectionCallback != null) {
+                mediaProjection.unregisterCallback(mediaProjectionCallback);
+            }
+            mediaProjection.stop();
+            mediaProjection = null;
+        }
+    }
+}
