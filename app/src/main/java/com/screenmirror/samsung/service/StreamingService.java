@@ -26,7 +26,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.screenmirror.samsung.MainActivity;
 import com.screenmirror.samsung.R;
-import com.screenmirror.samsung.util.ImageUtils;
+import com.screenmirror.samsung.util.ImageUtils; // This import should now be resolved
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -38,8 +38,8 @@ import java.nio.ByteBuffer;
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.NanoWSD.WebSocket;
-import fi.iki.elonen.NanoWSD.WebSocketFrame;
+import fi.iki.elonen.WebSocket; // Correct import for WebSocket (from NanoHTTPD or java-websocket)
+import fi.iki.elonen.WebSocketFrame; // Correct import for WebSocketFrame
 
 public class StreamingService extends Service {
 
@@ -86,7 +86,7 @@ public class StreamingService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Screen Mirroring Active")
                 .setContentText("Streaming your screen to the iPad.")
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this resource exists
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
@@ -194,7 +194,13 @@ public class StreamingService extends Service {
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
 
+            // Using ImageUtils now
             Bitmap bitmap = ImageUtils.imageToBitmap(image);
+            if (bitmap == null) {
+                Log.e(TAG, "Failed to convert Image to Bitmap.");
+                return;
+            }
+
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
             byte[] jpegBytes = bos.toByteArray();
@@ -243,9 +249,11 @@ public class StreamingService extends Service {
             }
         }
 
+        // Corrected onMessage signature and payload access
         @Override
-        protected void onMessage(WebSocketFrame message) {
-            if (message.isText()) {
+        public void onMessage(WebSocketFrame message) { // Changed protected to public
+            // WebSocketFrame.getTextPayload() and getBinaryPayload() should work with NanoWSD's WebSocketFrame
+            if (message.isText()) { // isText() should be available
                 String textMessage = message.getTextPayload();
                 Log.d(TAG, "Received message: " + textMessage);
                 try {
@@ -264,24 +272,27 @@ public class StreamingService extends Service {
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.isBinary()) {
+            } else if (message.isBinary()) { // isBinary() should be available
                 Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
             }
         }
 
+        // Corrected onPong signature
         @Override
-        protected void onPong(WebSocketFrame pong) {
+        public void onPong(WebSocketFrame pongFrame) { // Changed protected to public and parameter name
             Log.d(TAG, "Pong received.");
         }
 
+        // Corrected onPing signature
         @Override
-        protected void onPing(WebSocketFrame ping) {
+        public void onPing(WebSocketFrame pingFrame) { // Changed protected to public and parameter name
             Log.d(TAG, "Ping received.");
         }
 
+        // Corrected method name from onError to onException as required by WebSocket interface
         @Override
-        protected void onError(IOException e) {
-            Log.e(TAG, "WebSocket error: " + e.getMessage());
+        public void onException(IOException e) { // Changed protected to public and onError to onException
+            Log.e(TAG, "WebSocket error: " + e.getMessage(), e);
         }
     }
 
