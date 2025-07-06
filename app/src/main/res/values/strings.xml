@@ -1,7 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Screen Mirror</string>
     <string name="notification_channel_name">Screen Mirroring</string>
     <string name="notification_channel_description">Notification for active screen mirroring service.</string>
     <string name="notification_title">Screen Mirroring Active</string>
     <string name="notification_text">Streaming your screen to the iPad.</string>
+    <string name="accessibility_service_description">This service is required to capture touch input from the mirrored device.</string>
 </resources>
