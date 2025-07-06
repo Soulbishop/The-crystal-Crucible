@@ -10,7 +10,6 @@ import android.graphics.Bitmap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
-import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -39,21 +38,16 @@ import java.nio.ByteBuffer;
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoHTTPD.IHTTPSession;
 import fi.iki.elonen.NanoWSD;
-// org.java_websocket imports are not needed for NanoWSD server's internal WebSocket handling.
-// If you are using org.java_websocket for client-side connections elsewhere, keep its dependency in build.gradle,
-// but for the server logic here, NanoWSD's own WebSocket class is used.
-// import org.java_websocket.WebSocket;
-// import org.java_websocket.framing.Framedata;
-
+import fi.iki.elonen.NanoWSD.WebSocket;
+import fi.iki.elonen.NanoWSD.WebSocketFrame;
 
 public class StreamingService extends Service {
 
     private static final String TAG = "StreamingService";
     private static final String CHANNEL_ID = "ScreenMirroringChannel";
     private static final int NOTIFICATION_ID = 1001;
-    public static final int WEBSOCKET_PORT = 8080; // Made public for MainActivity access
+    private static final int WEBSOCKET_PORT = 8080;
 
-    private MediaProjectionManager mediaProjectionManager;
     private MediaProjection mediaProjection;
     private NanoWSD wsServer;
     private HandlerThread imageProcessingThread;
@@ -63,19 +57,13 @@ public class StreamingService extends Service {
     private Surface surface;
     private int screenWidth, screenHeight, screenDensity;
 
-    // Type corrected to NanoWSD.WebSocket for compatibility with NanoWSD's internal structure
-    private static NanoWSD.WebSocket currentClientWebSocket;
+    private static WebSocket currentClientWebSocket;
 
     // Singleton pattern for easy access from TouchInputService
     private static StreamingService instance;
-    private static boolean isServiceRunning = false;
 
     public static StreamingService getInstance() {
         return instance;
-    }
-
-    public static boolean isRunning() {
-        return isServiceRunning;
     }
 
     // Interface for TouchInputService to send touch events
@@ -94,17 +82,14 @@ public class StreamingService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        isServiceRunning = true; // Set flag to true when service starts
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.notification_title))
-                .setContentText(getString(R.string.notification_text))
+                .setContentTitle("Screen Mirroring Active")
+                .setContentText("Streaming your screen to the iPad.")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
         startForeground(NOTIFICATION_ID, notification);
-
-        mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
         imageProcessingThread = new HandlerThread("ImageProcessingThread");
         imageProcessingThread.start();
@@ -117,25 +102,8 @@ public class StreamingService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_START_STREAMING)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaProjectionManager != null) {
-                    int resultCode = intent.getIntExtra("resultCode", 0);
-                    Intent resultData = intent.getParcelableExtra("resultData");
-                    if (resultData != null && resultCode != 0) {
-                        mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, resultData);
-                        if (mediaProjection == null) {
-                            Log.e(TAG, "Failed to get MediaProjection from result data. Stopping service.");
-                            stopSelf();
-                            return START_NOT_STICKY;
-                        }
-                    } else {
-                        Log.e(TAG, "Missing resultCode or resultData for MediaProjection. Stopping service.");
-                        stopSelf();
-                        return START_NOT_STICKY;
-                    }
-                } else {
-                    Log.e(TAG, "MediaProjectionManager is null or Android version too low. Stopping service.");
-                    stopSelf();
-                    return START_NOT_STICKY;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mediaProjection = intent.getParcelableExtra("mediaProjection");
                 }
                 screenWidth = intent.getIntExtra("width", 1920);
                 screenHeight = intent.getIntExtra("height", 1080);
@@ -152,8 +120,8 @@ public class StreamingService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = getString(R.string.notification_channel_name);
-            String description = getString(R.string.notification_channel_description);
+            CharSequence name = "Screen Mirroring";
+            String description = "Notification for active screen mirroring service.";
             int importance = NotificationManager.IMPORTANCE_LOW;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
@@ -165,7 +133,7 @@ public class StreamingService extends Service {
     private void startWebSocketServer() {
         wsServer = new NanoWSD(WEBSOCKET_PORT) {
             @Override
-            protected NanoWSD.WebSocket openWebSocket(IHTTPSession handshake) { // Corrected return type
+            protected WebSocket openWebSocket(IHTTPSession handshake) {
                 Log.d(TAG, "New WebSocket connection attempt.");
                 return new ScreenMirrorWebSocket(handshake);
             }
@@ -197,10 +165,6 @@ public class StreamingService extends Service {
                 android.graphics.PixelFormat.RGBA_8888, 2);
         surface = imageReader.getSurface();
 
-        if (virtualDisplay != null) {
-            virtualDisplay.release();
-        }
-
         virtualDisplay = mediaProjection.createVirtualDisplay("ScreenMirrorDisplay",
                 screenWidth, screenHeight, screenDensity,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
@@ -231,11 +195,6 @@ public class StreamingService extends Service {
             buffer.get(bytes);
 
             Bitmap bitmap = ImageUtils.imageToBitmap(image);
-            if (bitmap == null) {
-                Log.e(TAG, "Failed to convert Image to Bitmap.");
-                return;
-            }
-
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
             byte[] jpegBytes = bos.toByteArray();
@@ -255,24 +214,22 @@ public class StreamingService extends Service {
         }
     }
 
-    // IMPORTANT: This class must extend NanoWSD.WebSocket for compatibility with NanoWSD
-    private class ScreenMirrorWebSocket extends NanoWSD.WebSocket {
+    private class ScreenMirrorWebSocket extends WebSocket {
         public ScreenMirrorWebSocket(IHTTPSession handshake) {
             super(handshake);
             Log.d(TAG, "ScreenMirrorWebSocket created.");
         }
 
-        // Corrected onOpen signature for NanoWSD.WebSocket
         @Override
-        public void onOpen(NanoWSD.WebSocket conn) { // The parameter type is now NanoWSD.WebSocket
+        protected void onOpen() {
             Log.d(TAG, "WebSocket opened. Client connected.");
-            currentClientWebSocket = this; // 'this' is a NanoWSD.WebSocket instance, compatible.
+            currentClientWebSocket = this;
             try {
                 JSONObject welcomeMessage = new JSONObject();
                 welcomeMessage.put("type", "welcome");
                 welcomeMessage.put("screenWidth", screenWidth);
                 welcomeMessage.put("screenHeight", screenHeight);
-                this.send(welcomeMessage.toString()); // Calling send on this NanoWSD.WebSocket instance
+                send(welcomeMessage.toString());
             } catch (JSONException e) {
                 Log.e(TAG, "Error sending welcome message: " + e.getMessage());
             }
@@ -281,45 +238,52 @@ public class StreamingService extends Service {
         @Override
         public void onClose(int code, String reason, boolean initiatedByRemote) {
             Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
-            if (this == currentClientWebSocket) { // Comparison is now compatible
+            if (this == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
         @Override
-        public void onMessage(String message) {
-            Log.d(TAG, "Received message: " + message);
-            try {
-                JSONObject json = new JSONObject(message);
-                String type = json.optString("type");
-                if ("touchEvent".equals(type)) {
-                    if (touchCallback != null) {
-                        float x = (float) json.optDouble("x");
-                        float y = (float) json.optDouble("y");
-                        String action = json.optString("action");
-                        touchCallback.onTouchEvent(x, y, action);
-                    } else {
-                        Log.w(TAG, "TouchCallback not set. Touch event not processed.");
+        protected void onMessage(WebSocketFrame message) {
+            if (message.isText()) {
+                String textMessage = message.getTextPayload();
+                Log.d(TAG, "Received message: " + textMessage);
+                try {
+                    JSONObject json = new JSONObject(textMessage);
+                    String type = json.optString("type");
+                    if ("touchEvent".equals(type)) {
+                        if (touchCallback != null) {
+                            float x = (float) json.optDouble("x");
+                            float y = (float) json.optDouble("y");
+                            String action = json.optString("action");
+                            touchCallback.onTouchEvent(x, y, action);
+                        } else {
+                            Log.w(TAG, "TouchCallback not set. Touch event not processed.");
+                        }
                     }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } catch (JSONException e) {
-                Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
+            } else if (message.isBinary()) {
+                Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
             }
         }
 
         @Override
-        public void onMessage(ByteBuffer message) {
-            Log.d(TAG, "Received binary message of length: " + message.remaining());
-            // Process binary data here if needed
+        protected void onPong(WebSocketFrame pong) {
+            Log.d(TAG, "Pong received.");
         }
 
-        // Removed onPing and onPong as they are not standard overrides for NanoWSD.WebSocket
-        // NanoWSD handles ping/pong internally within its framework.
-
-        // Corrected onError signature for NanoWSD.WebSocket
         @Override
-        public void onError(Exception ex) { // Takes only Exception parameter
-            Log.e(TAG, "WebSocket error: " + ex.getMessage(), ex);
+        protected void onPing(WebSocketFrame ping) {
+            Log.d(TAG, "Ping received.");
+        }
+
+        // FIX: Implemented the abstract onException method as required by NanoWSD.WebSocket
+        @Override
+        public void onException(IOException e) {
+            Log.e(TAG, "WebSocket exception: " + e.getMessage());
+            // Add any specific handling for exceptions here, e.g., closing the connection gracefully
         }
     }
 
@@ -334,7 +298,6 @@ public class StreamingService extends Service {
         super.onDestroy();
         Log.d(TAG, "StreamingService onDestroy called.");
         instance = null;
-        isServiceRunning = false; // Set flag to false when service stops
 
         if (wsServer != null) {
             try {
