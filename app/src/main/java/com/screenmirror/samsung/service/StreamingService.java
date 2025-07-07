@@ -34,12 +34,11 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.net.InetSocketAddress;
 
-import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elonen.NanoHTTPD.IHTTPSession;
-import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.NanoWSD.WebSocket;
-import fi.iki.elonen.NanoWSD.WebSocketFrame;
+import org.java_websocket.WebSocket;
+import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.WebSocketServer;
 
 public class StreamingService extends Service {
 
@@ -49,7 +48,7 @@ public class StreamingService extends Service {
     private static final int WEBSOCKET_PORT = 8080;
 
     private MediaProjection mediaProjection;
-    private NanoWSD wsServer;
+    private WebSocketServer wsServer;
     private HandlerThread imageProcessingThread;
     private Handler imageProcessingHandler;
     private ImageReader imageReader;
@@ -131,18 +130,12 @@ public class StreamingService extends Service {
     }
 
     private void startWebSocketServer() {
-        wsServer = new NanoWSD(WEBSOCKET_PORT) {
-            @Override
-            protected WebSocket openWebSocket(IHTTPSession handshake) {
-                Log.d(TAG, "New WebSocket connection attempt.");
-                return new ScreenMirrorWebSocket(handshake);
-            }
-        };
+        wsServer = new MyScreenMirrorWebSocketServer(WEBSOCKET_PORT);
         try {
-            wsServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            wsServer.start();
             Log.d(TAG, "WebSocket server started on port " + WEBSOCKET_PORT);
             displayIpAddress();
-        } catch (IOException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Error starting WebSocket server: " + e.getMessage());
             e.printStackTrace();
         }
@@ -214,74 +207,70 @@ public class StreamingService extends Service {
         }
     }
 
-    private class ScreenMirrorWebSocket extends WebSocket {
-        public ScreenMirrorWebSocket(IHTTPSession handshake) {
-            super(handshake);
-            Log.d(TAG, "ScreenMirrorWebSocket created.");
+    private class MyScreenMirrorWebSocketServer extends WebSocketServer {
+
+        public MyScreenMirrorWebSocketServer(int port) {
+            super(new InetSocketAddress(port));
         }
 
         @Override
-        protected void onOpen() {
-            Log.d(TAG, "WebSocket opened. Client connected.");
-            currentClientWebSocket = this;
+        public void onOpen(WebSocket conn, ClientHandshake handshake) {
+            Log.d(TAG, "WebSocket opened. Client connected: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
+            currentClientWebSocket = conn;
             try {
                 JSONObject welcomeMessage = new JSONObject();
                 welcomeMessage.put("type", "welcome");
                 welcomeMessage.put("screenWidth", screenWidth);
                 welcomeMessage.put("screenHeight", screenHeight);
-                send(welcomeMessage.toString());
+                conn.send(welcomeMessage.toString());
             } catch (JSONException e) {
                 Log.e(TAG, "Error sending welcome message: " + e.getMessage());
             }
         }
 
         @Override
-        public void onClose(int code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
-            if (this == currentClientWebSocket) {
+        public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+            Log.d(TAG, "WebSocket closed: " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ", code: " + code + ", reason: " + reason + ", remote: " + remote);
+            if (conn == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
         @Override
-        protected void onMessage(WebSocketFrame message) {
-            if (message.isText()) {
-                String textMessage = message.getTextPayload();
-                Log.d(TAG, "Received message: " + textMessage);
-                try {
-                    JSONObject json = new JSONObject(textMessage);
-                    String type = json.optString("type");
-                    if ("touchEvent".equals(type)) {
-                        if (touchCallback != null) {
-                            float x = (float) json.optDouble("x");
-                            float y = (float) json.optDouble("y");
-                            String action = json.optString("action");
-                            touchCallback.onTouchEvent(x, y, action);
-                        } else {
-                            Log.w(TAG, "TouchCallback not set. Touch event not processed.");
-                        }
+        public void onMessage(WebSocket conn, String message) {
+            Log.d(TAG, "Received message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
+            try {
+                JSONObject json = new JSONObject(message);
+                String type = json.optString("type");
+                if ("touchEvent".equals(type)) {
+                    if (touchCallback != null) {
+                        float x = (float) json.optDouble("x");
+                        float y = (float) json.optDouble("y");
+                        String action = json.optString("action");
+                        touchCallback.onTouchEvent(x, y, action);
+                    } else {
+                        Log.w(TAG, "TouchCallback not set. Touch event not processed.");
                     }
-                } catch (JSONException e) {
-                    Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.isBinary()) {
-                Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
             }
         }
 
         @Override
-        protected void onPong(WebSocketFrame pong) {
-            Log.d(TAG, "Pong received.");
+        public void onMessage(WebSocket conn, ByteBuffer message) {
+            Log.d(TAG, "Received binary message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ", length: " + message.remaining());
         }
 
         @Override
-        protected void onPing(WebSocketFrame ping) {
-            Log.d(TAG, "Ping received.");
+        public void onError(WebSocket conn, Exception ex) {
+            Log.e(TAG, "WebSocket error on connection " + (conn != null ? conn.getRemoteSocketAddress() : "null") + ": " + ex.getMessage());
+            ex.printStackTrace();
         }
 
         @Override
-        protected void onError(IOException e) {
-            Log.e(TAG, "WebSocket error: " + e.getMessage());
+        public void onStart() {
+            Log.d(TAG, "Java-WebSocket server started successfully.");
         }
     }
 
@@ -299,9 +288,10 @@ public class StreamingService extends Service {
 
         if (wsServer != null) {
             try {
+                // FIX: Changed catch block to only catch InterruptedException
                 wsServer.stop();
                 Log.d(TAG, "WebSocket server stopped.");
-            } catch (IOException | InterruptedException e) {
+            } catch (InterruptedException e) {
                 Log.e(TAG, "Error stopping WebSocket server: " + e.getMessage());
             }
         }
