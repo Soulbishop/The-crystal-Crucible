@@ -101,6 +101,7 @@ public class StreamingService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
+            // FIX: Using the newly defined constants from MainActivity
             if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_START_STREAMING)) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     mediaProjection = intent.getParcelableExtra("mediaProjection");
@@ -110,6 +111,7 @@ public class StreamingService extends Service {
                 screenDensity = intent.getIntExtra("density", 1);
                 startScreenCapture();
                 Log.d(TAG, "Streaming service started with MediaProjection. Resolution: " + screenWidth + "x" + screenHeight);
+            // FIX: Using the newly defined constants from MainActivity
             } else if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_STOP_STREAMING)) {
                 stopSelf();
                 Log.d(TAG, "Streaming service stopped via intent.");
@@ -235,17 +237,19 @@ public class StreamingService extends Service {
             }
         }
 
+        // FIX: Changed 'int' to 'WebSocket.CloseCode' and updated logging
         @Override
-        public void onClose(int code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
+        public void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
+            Log.d(TAG, "WebSocket closed: " + code.name() + " (" + code.getValue() + "), reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
             if (this == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
+        // FIX: Changed 'protected' to 'public' and updated content type checks using OpCode
         @Override
-        protected void onMessage(WebSocketFrame message) {
-            if (message.isText()) {
+        public void onMessage(WebSocketFrame message) {
+            if (message.getOpCode() == WebSocketFrame.OpCode.Text) { // Check for text opcode
                 String textMessage = message.getTextPayload();
                 Log.d(TAG, "Received message: " + textMessage);
                 try {
@@ -264,7 +268,7 @@ public class StreamingService extends Service {
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.isBinary()) {
+            } else if (message.getOpCode() == WebSocketFrame.OpCode.Binary) { // Check for binary opcode
                 Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
             }
         }
@@ -274,8 +278,9 @@ public class StreamingService extends Service {
             Log.d(TAG, "Pong received.");
         }
 
+        // FIX: Changed 'protected' to 'public'
         @Override
-        protected void onPing(WebSocketFrame ping) {
+        public void onPing(WebSocketFrame ping) {
             Log.d(TAG, "Ping received.");
         }
 
