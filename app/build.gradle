@@ -41,11 +41,10 @@ dependencies {
     implementation 'androidx.cardview:cardview:1.0.0'
 
     // WebSocket Libraries
-    // NanoHTTPD/NanoWSD for the server
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
-    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
+    // REMOVED: implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1' // Keep NanoWSD
 
-    // Java-WebSocket for general WebSocket client interactions or if NanoWSD has a dependency
+    // Java-WebSocket (keeping it in for now, as it might be used elsewhere or as a fallback)
     implementation 'org.java-websocket:Java-WebSocket:1.5.3'
 
     // Testing Dependencies
