@@ -34,16 +34,8 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.net.InetSocketAddress; // FIX: Added for Java-WebSocket
+import java.net.InetSocketAddress;
 
-// FIX: Removed NanoHTTPD/NanoWSD imports
-// import fi.iki.elonen.NanoHTTPD;
-// import fi.iki.elonen.NanoHTTPD.IHTTPSession;
-// import fi.iki.elonen.NanoWSD;
-// import fi.iki.elonen.NanoWSD.WebSocket;
-// import fi.iki.elonen.NanoWSD.WebSocketFrame;
-
-// FIX: Added Java-WebSocket imports
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
@@ -56,7 +48,6 @@ public class StreamingService extends Service {
     private static final int WEBSOCKET_PORT = 8080;
 
     private MediaProjection mediaProjection;
-    // FIX: Changed type from NanoWSD to WebSocketServer (from Java-WebSocket)
     private WebSocketServer wsServer;
     private HandlerThread imageProcessingThread;
     private Handler imageProcessingHandler;
@@ -65,7 +56,6 @@ public class StreamingService extends Service {
     private Surface surface;
     private int screenWidth, screenHeight, screenDensity;
 
-    // FIX: Changed type to WebSocket (from Java-WebSocket)
     private static WebSocket currentClientWebSocket;
 
     // Singleton pattern for easy access from TouchInputService
@@ -140,14 +130,12 @@ public class StreamingService extends Service {
     }
 
     private void startWebSocketServer() {
-        // FIX: Changed instantiation to Java-WebSocket's WebSocketServer
         wsServer = new MyScreenMirrorWebSocketServer(WEBSOCKET_PORT);
         try {
-            // Java-WebSocket starts asynchronously, no timeout parameter in start()
             wsServer.start();
             Log.d(TAG, "WebSocket server started on port " + WEBSOCKET_PORT);
             displayIpAddress();
-        } catch (Exception e) { // Catch generic Exception as start() can throw RuntimeException
+        } catch (Exception e) {
             Log.e(TAG, "Error starting WebSocket server: " + e.getMessage());
             e.printStackTrace();
         }
@@ -205,7 +193,6 @@ public class StreamingService extends Service {
             byte[] jpegBytes = bos.toByteArray();
 
             try {
-                // FIX: Java-WebSocket send method
                 currentClientWebSocket.send(jpegBytes);
             } catch (Exception e) {
                 Log.e(TAG, "Error sending image over WebSocket: " + e.getMessage());
@@ -220,7 +207,6 @@ public class StreamingService extends Service {
         }
     }
 
-    // FIX: New inner class extending Java-WebSocket's WebSocketServer
     private class MyScreenMirrorWebSocketServer extends WebSocketServer {
 
         public MyScreenMirrorWebSocketServer(int port) {
@@ -230,13 +216,13 @@ public class StreamingService extends Service {
         @Override
         public void onOpen(WebSocket conn, ClientHandshake handshake) {
             Log.d(TAG, "WebSocket opened. Client connected: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
-            currentClientWebSocket = conn; // Set the current client connection
+            currentClientWebSocket = conn;
             try {
                 JSONObject welcomeMessage = new JSONObject();
                 welcomeMessage.put("type", "welcome");
                 welcomeMessage.put("screenWidth", screenWidth);
                 welcomeMessage.put("screenHeight", screenHeight);
-                conn.send(welcomeMessage.toString()); // Send to the specific connection
+                conn.send(welcomeMessage.toString());
             } catch (JSONException e) {
                 Log.e(TAG, "Error sending welcome message: " + e.getMessage());
             }
@@ -254,7 +240,7 @@ public class StreamingService extends Service {
         public void onMessage(WebSocket conn, String message) {
             Log.d(TAG, "Received message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
             try {
-                JSONObject json = new JSONObject(message); // Message is already text payload
+                JSONObject json = new JSONObject(message);
                 String type = json.optString("type");
                 if ("touchEvent".equals(type)) {
                     if (touchCallback != null) {
@@ -274,7 +260,6 @@ public class StreamingService extends Service {
         @Override
         public void onMessage(WebSocket conn, ByteBuffer message) {
             Log.d(TAG, "Received binary message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ", length: " + message.remaining());
-            // No direct handling needed for incoming binary messages for touch input
         }
 
         @Override
@@ -285,17 +270,9 @@ public class StreamingService extends Service {
 
         @Override
         public void onStart() {
-            // This is called when the server successfully starts listening
             Log.d(TAG, "Java-WebSocket server started successfully.");
         }
     }
-
-    // FIX: Removed the old ScreenMirrorWebSocket class (which extended NanoWSD.WebSocket)
-    /*
-    private class ScreenMirrorWebSocket extends WebSocket {
-        // ... (old NanoWSD implementation)
-    }
-    */
 
     @Nullable
     @Override
@@ -311,9 +288,10 @@ public class StreamingService extends Service {
 
         if (wsServer != null) {
             try {
-                wsServer.stop(); // Java-WebSocket stop method
+                // FIX: Changed catch block to only catch InterruptedException
+                wsServer.stop();
                 Log.d(TAG, "WebSocket server stopped.");
-            } catch (IOException | InterruptedException e) {
+            } catch (InterruptedException e) {
                 Log.e(TAG, "Error stopping WebSocket server: " + e.getMessage());
             }
         }
