@@ -101,7 +101,6 @@ public class StreamingService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
-            // FIX: Using the newly defined constants from MainActivity
             if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_START_STREAMING)) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     mediaProjection = intent.getParcelableExtra("mediaProjection");
@@ -111,7 +110,6 @@ public class StreamingService extends Service {
                 screenDensity = intent.getIntExtra("density", 1);
                 startScreenCapture();
                 Log.d(TAG, "Streaming service started with MediaProjection. Resolution: " + screenWidth + "x" + screenHeight);
-            // FIX: Using the newly defined constants from MainActivity
             } else if (intent.getAction() != null && intent.getAction().equals(MainActivity.ACTION_STOP_STREAMING)) {
                 stopSelf();
                 Log.d(TAG, "Streaming service stopped via intent.");
@@ -237,18 +235,20 @@ public class StreamingService extends Service {
             }
         }
 
-        // FIX: Changed 'int' to 'WebSocket.CloseCode' and updated logging
+        // FIX: Changed parameter type back to 'int' for 'code'
+        // This is necessary if your NanoWSD version doesn't use the WebSocket.CloseCode enum
         @Override
-        public void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "WebSocket closed: " + code.name() + " (" + code.getValue() + "), reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
+        public void onClose(int code, String reason, boolean initiatedByRemote) {
+            Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
             if (this == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
-        // FIX: Changed 'protected' to 'public' and updated content type checks using OpCode
+        // FIX: Changed access modifier to 'protected' (reverted from public)
+        // And ensure OpCode check for text/binary remains
         @Override
-        public void onMessage(WebSocketFrame message) {
+        protected void onMessage(WebSocketFrame message) {
             if (message.getOpCode() == WebSocketFrame.OpCode.Text) { // Check for text opcode
                 String textMessage = message.getTextPayload();
                 Log.d(TAG, "Received message: " + textMessage);
@@ -278,13 +278,12 @@ public class StreamingService extends Service {
             Log.d(TAG, "Pong received.");
         }
 
-        // FIX: Changed 'protected' to 'public'
+        // FIX: Changed access modifier back to 'protected' (reverted from public)
         @Override
-        public void onPing(WebSocketFrame ping) {
+        protected void onPing(WebSocketFrame ping) {
             Log.d(TAG, "Ping received.");
         }
 
-        // FIX: Implemented the abstract onException method as required by NanoWSD.WebSocket
         @Override
         public void onException(IOException e) {
             Log.e(TAG, "WebSocket exception: " + e.getMessage());
