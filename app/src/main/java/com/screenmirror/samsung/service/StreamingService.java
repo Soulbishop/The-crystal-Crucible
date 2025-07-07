@@ -34,12 +34,19 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.net.InetSocketAddress; // FIX: Added for Java-WebSocket
 
-import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elonen.NanoHTTPD.IHTTPSession;
-import fi.iki.elonen.NanoWSD;
-import fi.iki.elonen.NanoWSD.WebSocket;
-import fi.iki.elonen.NanoWSD.WebSocketFrame;
+// FIX: Removed NanoHTTPD/NanoWSD imports
+// import fi.iki.elonen.NanoHTTPD;
+// import fi.iki.elonen.NanoHTTPD.IHTTPSession;
+// import fi.iki.elonen.NanoWSD;
+// import fi.iki.elonen.NanoWSD.WebSocket;
+// import fi.iki.elonen.NanoWSD.WebSocketFrame;
+
+// FIX: Added Java-WebSocket imports
+import org.java_websocket.WebSocket;
+import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.WebSocketServer;
 
 public class StreamingService extends Service {
 
@@ -49,7 +56,8 @@ public class StreamingService extends Service {
     private static final int WEBSOCKET_PORT = 8080;
 
     private MediaProjection mediaProjection;
-    private NanoWSD wsServer;
+    // FIX: Changed type from NanoWSD to WebSocketServer (from Java-WebSocket)
+    private WebSocketServer wsServer;
     private HandlerThread imageProcessingThread;
     private Handler imageProcessingHandler;
     private ImageReader imageReader;
@@ -57,6 +65,7 @@ public class StreamingService extends Service {
     private Surface surface;
     private int screenWidth, screenHeight, screenDensity;
 
+    // FIX: Changed type to WebSocket (from Java-WebSocket)
     private static WebSocket currentClientWebSocket;
 
     // Singleton pattern for easy access from TouchInputService
@@ -131,18 +140,14 @@ public class StreamingService extends Service {
     }
 
     private void startWebSocketServer() {
-        wsServer = new NanoWSD(WEBSOCKET_PORT) {
-            @Override
-            protected WebSocket openWebSocket(IHTTPSession handshake) {
-                Log.d(TAG, "New WebSocket connection attempt.");
-                return new ScreenMirrorWebSocket(handshake);
-            }
-        };
+        // FIX: Changed instantiation to Java-WebSocket's WebSocketServer
+        wsServer = new MyScreenMirrorWebSocketServer(WEBSOCKET_PORT);
         try {
-            wsServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            // Java-WebSocket starts asynchronously, no timeout parameter in start()
+            wsServer.start();
             Log.d(TAG, "WebSocket server started on port " + WEBSOCKET_PORT);
             displayIpAddress();
-        } catch (IOException e) {
+        } catch (Exception e) { // Catch generic Exception as start() can throw RuntimeException
             Log.e(TAG, "Error starting WebSocket server: " + e.getMessage());
             e.printStackTrace();
         }
@@ -200,6 +205,7 @@ public class StreamingService extends Service {
             byte[] jpegBytes = bos.toByteArray();
 
             try {
+                // FIX: Java-WebSocket send method
                 currentClientWebSocket.send(jpegBytes);
             } catch (Exception e) {
                 Log.e(TAG, "Error sending image over WebSocket: " + e.getMessage());
@@ -214,81 +220,82 @@ public class StreamingService extends Service {
         }
     }
 
-    private class ScreenMirrorWebSocket extends WebSocket {
-        public ScreenMirrorWebSocket(IHTTPSession handshake) {
-            super(handshake);
-            Log.d(TAG, "ScreenMirrorWebSocket created.");
+    // FIX: New inner class extending Java-WebSocket's WebSocketServer
+    private class MyScreenMirrorWebSocketServer extends WebSocketServer {
+
+        public MyScreenMirrorWebSocketServer(int port) {
+            super(new InetSocketAddress(port));
         }
 
         @Override
-        protected void onOpen() {
-            Log.d(TAG, "WebSocket opened. Client connected.");
-            currentClientWebSocket = this;
+        public void onOpen(WebSocket conn, ClientHandshake handshake) {
+            Log.d(TAG, "WebSocket opened. Client connected: " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
+            currentClientWebSocket = conn; // Set the current client connection
             try {
                 JSONObject welcomeMessage = new JSONObject();
                 welcomeMessage.put("type", "welcome");
                 welcomeMessage.put("screenWidth", screenWidth);
                 welcomeMessage.put("screenHeight", screenHeight);
-                send(welcomeMessage.toString());
+                conn.send(welcomeMessage.toString()); // Send to the specific connection
             } catch (JSONException e) {
                 Log.e(TAG, "Error sending welcome message: " + e.getMessage());
             }
         }
 
-        // FIX: Reverted to WebSocket.CloseCode as the type for 'code'
-        // This confirms your NanoWSD version expects the enum, not an int.
         @Override
-        public void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "WebSocket closed: " + code.name() + " (" + code.getValue() + "), reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
-            if (this == currentClientWebSocket) {
+        public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+            Log.d(TAG, "WebSocket closed: " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ", code: " + code + ", reason: " + reason + ", remote: " + remote);
+            if (conn == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
-        // FIX: Changed access modifier to 'public' for onMessage
         @Override
-        public void onMessage(WebSocketFrame message) {
-            if (message.getOpCode() == WebSocketFrame.OpCode.Text) {
-                String textMessage = message.getTextPayload();
-                Log.d(TAG, "Received message: " + textMessage);
-                try {
-                    JSONObject json = new JSONObject(textMessage);
-                    String type = json.optString("type");
-                    if ("touchEvent".equals(type)) {
-                        if (touchCallback != null) {
-                            float x = (float) json.optDouble("x");
-                            float y = (float) json.optDouble("y");
-                            String action = json.optString("action");
-                            touchCallback.onTouchEvent(x, y, action);
-                        } else {
-                            Log.w(TAG, "TouchCallback not set. Touch event not processed.");
-                        }
+        public void onMessage(WebSocket conn, String message) {
+            Log.d(TAG, "Received message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
+            try {
+                JSONObject json = new JSONObject(message); // Message is already text payload
+                String type = json.optString("type");
+                if ("touchEvent".equals(type)) {
+                    if (touchCallback != null) {
+                        float x = (float) json.optDouble("x");
+                        float y = (float) json.optDouble("y");
+                        String action = json.optString("action");
+                        touchCallback.onTouchEvent(x, y, action);
+                    } else {
+                        Log.w(TAG, "TouchCallback not set. Touch event not processed.");
                     }
-                } catch (JSONException e) {
-                    Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.getOpCode() == WebSocketFrame.OpCode.Binary) {
-                Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
             }
         }
 
         @Override
-        protected void onPong(WebSocketFrame pong) {
-            Log.d(TAG, "Pong received.");
-        }
-
-        // FIX: Changed access modifier to 'public' for onPing
-        @Override
-        public void onPing(WebSocketFrame ping) {
-            Log.d(TAG, "Ping received.");
+        public void onMessage(WebSocket conn, ByteBuffer message) {
+            Log.d(TAG, "Received binary message from " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ", length: " + message.remaining());
+            // No direct handling needed for incoming binary messages for touch input
         }
 
         @Override
-        public void onException(IOException e) {
-            Log.e(TAG, "WebSocket exception: " + e.getMessage());
-            // Add any specific handling for exceptions here, e.g., closing the connection gracefully
+        public void onError(WebSocket conn, Exception ex) {
+            Log.e(TAG, "WebSocket error on connection " + (conn != null ? conn.getRemoteSocketAddress() : "null") + ": " + ex.getMessage());
+            ex.printStackTrace();
+        }
+
+        @Override
+        public void onStart() {
+            // This is called when the server successfully starts listening
+            Log.d(TAG, "Java-WebSocket server started successfully.");
         }
     }
+
+    // FIX: Removed the old ScreenMirrorWebSocket class (which extended NanoWSD.WebSocket)
+    /*
+    private class ScreenMirrorWebSocket extends WebSocket {
+        // ... (old NanoWSD implementation)
+    }
+    */
 
     @Nullable
     @Override
@@ -304,7 +311,7 @@ public class StreamingService extends Service {
 
         if (wsServer != null) {
             try {
-                wsServer.stop();
+                wsServer.stop(); // Java-WebSocket stop method
                 Log.d(TAG, "WebSocket server stopped.");
             } catch (IOException | InterruptedException e) {
                 Log.e(TAG, "Error stopping WebSocket server: " + e.getMessage());
