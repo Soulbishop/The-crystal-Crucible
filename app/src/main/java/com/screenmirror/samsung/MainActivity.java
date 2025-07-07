@@ -2,6 +2,7 @@ package com.screenmirror.samsung;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ComponentName; // Added for TouchInputService.isAccessibilityServiceEnabled
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -15,7 +16,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-import androidx.annotation.NonNull; // Keep this import if you use @NonNull elsewhere
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.screenmirror.samsung.service.ScreenCaptureService;
@@ -28,6 +29,10 @@ public class MainActivity extends Activity {
     private static final String TAG = "MainActivity";
     private static final int REQUEST_MEDIA_PROJECTION = 1000;
     private static final int REQUEST_PERMISSIONS = 1001;
+
+    // FIX: Added these constants for use in StreamingService
+    public static final String ACTION_START_STREAMING = "com.screenmirror.samsung.START_STREAMING";
+    public static final String ACTION_STOP_STREAMING = "com.screenmirror.samsung.STOP_STREAMING";
 
     private Button startButton;
     private Button stopButton;
@@ -115,6 +120,7 @@ public class MainActivity extends Activity {
     }
 
     private void startScreenMirroring() {
+        // FIX: isAccessibilityServiceEnabled check relies on the method being in TouchInputService
         if (!TouchInputService.isAccessibilityServiceEnabled(this)) {
             Toast.makeText(this, "Please enable Accessibility Service first", Toast.LENGTH_LONG).show();
             openAccessibilitySettings();
@@ -224,6 +230,7 @@ public class MainActivity extends Activity {
         super.onResume();
         displayIPAddress();
 
+        // FIX: isAccessibilityServiceEnabled check relies on the method being in TouchInputService
         if (TouchInputService.isAccessibilityServiceEnabled(this)) {
             Toast.makeText(this, "Accessibility service is enabled", Toast.LENGTH_SHORT).show();
         }
