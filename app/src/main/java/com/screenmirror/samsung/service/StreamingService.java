@@ -235,21 +235,20 @@ public class StreamingService extends Service {
             }
         }
 
-        // FIX: Changed parameter type back to 'int' for 'code'
-        // This is necessary if your NanoWSD version doesn't use the WebSocket.CloseCode enum
+        // FIX: Reverted to WebSocket.CloseCode as the type for 'code'
+        // This confirms your NanoWSD version expects the enum, not an int.
         @Override
-        public void onClose(int code, String reason, boolean initiatedByRemote) {
-            Log.d(TAG, "WebSocket closed: " + code + ", reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
+        public void onClose(WebSocket.CloseCode code, String reason, boolean initiatedByRemote) {
+            Log.d(TAG, "WebSocket closed: " + code.name() + " (" + code.getValue() + "), reason: " + reason + ", initiatedByRemote: " + initiatedByRemote);
             if (this == currentClientWebSocket) {
                 currentClientWebSocket = null;
             }
         }
 
-        // FIX: Changed access modifier to 'protected' (reverted from public)
-        // And ensure OpCode check for text/binary remains
+        // FIX: Changed access modifier to 'public' for onMessage
         @Override
-        protected void onMessage(WebSocketFrame message) {
-            if (message.getOpCode() == WebSocketFrame.OpCode.Text) { // Check for text opcode
+        public void onMessage(WebSocketFrame message) {
+            if (message.getOpCode() == WebSocketFrame.OpCode.Text) {
                 String textMessage = message.getTextPayload();
                 Log.d(TAG, "Received message: " + textMessage);
                 try {
@@ -268,7 +267,7 @@ public class StreamingService extends Service {
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing JSON message: " + e.getMessage());
                 }
-            } else if (message.getOpCode() == WebSocketFrame.OpCode.Binary) { // Check for binary opcode
+            } else if (message.getOpCode() == WebSocketFrame.OpCode.Binary) {
                 Log.d(TAG, "Received binary message of length: " + message.getBinaryPayload().length);
             }
         }
@@ -278,9 +277,9 @@ public class StreamingService extends Service {
             Log.d(TAG, "Pong received.");
         }
 
-        // FIX: Changed access modifier back to 'protected' (reverted from public)
+        // FIX: Changed access modifier to 'public' for onPing
         @Override
-        protected void onPing(WebSocketFrame ping) {
+        public void onPing(WebSocketFrame ping) {
             Log.d(TAG, "Ping received.");
         }
 
